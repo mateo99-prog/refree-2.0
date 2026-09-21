@@ -9,9 +9,11 @@ const vercel = process.env.VERCEL === "1";
 
 if (vercel) {
   const cli = new URL("../node_modules/next/dist/bin/next", import.meta.url);
-  process.argv = [process.execPath, fileURLToPath(cli), command, ...args];
-  await import(cli.href);
-  process.exit(0);
+  const result = spawnSync(process.execPath, [fileURLToPath(cli), command, ...args], {
+    stdio: "inherit",
+  });
+  if (result.error) throw result.error;
+  process.exit(result.status ?? 1);
 }
 
 if (managedLinux && command === "build") {
