@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import type { Session } from "@supabase/supabase-js";
-import { BarChart3, CalendarDays, Check, ChevronRight, CircleEuro, Clock3, Download, ExternalLink, FileSpreadsheet, FileText, FileUp, Home, MapPin, Maximize2, Menu, MessageCircle, Minimize2, Pencil, Play, Plus, Search, Settings, ShieldCheck, Tag, TimerReset, Trash2, Trophy, UploadCloud, Users, Video, WalletCards, X } from "lucide-react";
+import { BarChart3, CalendarDays, Camera, Check, ChevronRight, CircleEuro, Clock3, Download, ExternalLink, FileSpreadsheet, FileText, FileUp, Home, MapPin, Maximize2, Menu, MessageCircle, Minimize2, Pencil, Play, Plus, Search, Settings, ShieldCheck, Tag, TimerReset, Trash2, Trophy, UploadCloud, Users, Video, WalletCards, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,11 +17,11 @@ type Rate = { id: string; category: string; role: string; amount: number; retent
 type Contact = { id: string; name: string; phone: string; role: string };
 type VideoAnnotation = { id: string; seconds: number; category: string; label: string; note: string; createdAt: string };
 type RecordedGame = { id: string; title: string; youtubeUrl: string; youtubeId: string; createdAt: string; annotations: VideoAnnotation[] };
-type AppData = { dataVersion: number; matches: Match[]; rates: Rate[]; contacts: Contact[]; recordedGames: RecordedGame[]; settings: { name: string; season: string } };
+type AppData = { dataVersion: number; matches: Match[]; rates: Rate[]; contacts: Contact[]; recordedGames: RecordedGame[]; settings: { name: string; season: string; earningsGoal: number; username: string; profileImage: string } };
 type Viewer = { userId: string; displayName: string; email: string; fullName: string | null };
 
 const sampleData: AppData = {
-  dataVersion: 2,
+  dataVersion: 3,
   matches: [
     { id: "p1", competition: "regional", date: "2026-09-19", time: "18:30", home: "CB Toledo", away: "Baloncesto Talavera", category: "Junior Autonómico", role: "Árbitro auxiliar", venue: "Pabellón Javier Lozano Cid", gross: 32, diets: 8, retention: 2, partners: ["Álvaro Martín"], video: true, status: "confirmado" },
     { id: "p2", competition: "regional", date: "2026-09-20", time: "12:00", home: "CEI Toledo", away: "CB La Sagra", category: "Infantil Regional", role: "Árbitro", venue: "Pabellón IES Universidad Laboral", gross: 24, diets: 0, retention: 2, partners: ["Lucía Gómez"], video: false, status: "confirmado" },
@@ -34,30 +34,62 @@ const sampleData: AppData = {
   ],
   contacts: [],
   recordedGames: [],
-  settings: { name: "Árbitro", season: "2026/27" },
+  settings: { name: "Árbitro", season: "2026/27", earningsGoal: 250, username: "", profileImage: "" },
 };
-const emptyData = (name: string): AppData => ({ dataVersion: 2, matches: [], rates: [], contacts: [], recordedGames: [], settings: { name, season: "2026/27" } });
+const emptyData = (name: string): AppData => ({ dataVersion: 3, matches: [], rates: [], contacts: [], recordedGames: [], settings: { name, season: "2026/27", earningsGoal: 250, username: "", profileImage: "" } });
 
 const nav: { id: View; label: string; icon: LucideIcon }[] = [
   { id: "inicio", label: "Inicio", icon: Home }, { id: "importar", label: "Importar", icon: FileUp }, { id: "regionales", label: "Regionales", icon: CalendarDays }, { id: "escolares", label: "Partidos escolares", icon: Trophy }, { id: "grabados", label: "Partidos grabados", icon: Video },
   { id: "ganancias", label: "Ganancias", icon: BarChart3 }, { id: "arbitros", label: "Árbitros", icon: Users }, { id: "tarifas", label: "Tarifas", icon: CircleEuro }, { id: "ajustes", label: "Ajustes", icon: Settings },
 ];
 const RETENTION_RATE = 2;
-const CURRENT_DATA_VERSION = 2;
+const CURRENT_DATA_VERSION = 3;
 const SAMPLE_CONTACT_IDS = new Set(["a1", "a2"]);
 const normalizeData = (state: AppData): AppData => {
   const removeSampleContacts = (state.dataVersion || 0) < 1;
+  const savedGoal = Number(state.settings?.earningsGoal);
   return {
     ...state,
     dataVersion: CURRENT_DATA_VERSION,
     matches: (state.matches || []).map((match) => ({ ...match, competition: match.competition === "escolar" ? "escolar" : "regional", retention: RETENTION_RATE })),
     rates: (state.rates || []).map((rate) => ({ ...rate, retention: RETENTION_RATE })),
     contacts: removeSampleContacts ? (state.contacts || []).filter((contact) => !SAMPLE_CONTACT_IDS.has(contact.id)) : (state.contacts || []),
+    settings: {
+      name: state.settings?.name || "Árbitro",
+      season: state.settings?.season || "2026/27",
+      earningsGoal: Number.isFinite(savedGoal) && savedGoal >= 0 ? savedGoal : 250,
+      username: state.settings?.username || "",
+      profileImage: state.settings?.profileImage || "",
+    },
   };
 };
 const money = (n: number) => new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(n);
 const net = (m: Match) => m.gross * (1 - RETENTION_RATE / 100) + m.diets;
 const normalizeRateField = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().replace(/\s+/g, " ").toLocaleLowerCase("es-ES");
+const normalizeUsername = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+const resizeProfileImage = (file: File) => new Promise<string>((resolve, reject) => {
+  if (!file.type.startsWith("image/")) { reject(new Error("Selecciona una imagen JPG, PNG o WebP.")); return; }
+  if (file.size > 8 * 1024 * 1024) { reject(new Error("La imagen no puede superar 8 MB.")); return; }
+  const reader = new FileReader();
+  reader.onerror = () => reject(new Error("No se pudo leer la imagen."));
+  reader.onload = () => {
+    const image = new Image();
+    image.onerror = () => reject(new Error("No se pudo procesar la imagen."));
+    image.onload = () => {
+      const side = Math.min(image.naturalWidth, image.naturalHeight);
+      const sourceX = (image.naturalWidth - side) / 2;
+      const sourceY = (image.naturalHeight - side) / 2;
+      const canvas = document.createElement("canvas");
+      canvas.width = 256; canvas.height = 256;
+      const context = canvas.getContext("2d");
+      if (!context) { reject(new Error("No se pudo preparar la imagen.")); return; }
+      context.drawImage(image, sourceX, sourceY, side, side, 0, 0, 256, 256);
+      resolve(canvas.toDataURL("image/jpeg", 0.84));
+    };
+    image.src = String(reader.result);
+  };
+  reader.readAsDataURL(file);
+});
 const findSavedRate = (rates: Rate[], category: string, role: string) => {
   const normalizedCategory = normalizeRateField(category);
   const normalizedRole = normalizeRateField(role);
@@ -162,6 +194,7 @@ export default function RefFlow() {
   const [viewer, setViewer] = useState<Viewer | null>(null); const [authState, setAuthState] = useState<"loading" | "authenticated" | "anonymous">("loading");
   const [legacyMigrationNeeded, setLegacyMigrationNeeded] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "signup">("login"); const [authEmail, setAuthEmail] = useState(""); const [authPassword, setAuthPassword] = useState(""); const [authName, setAuthName] = useState(""); const [authBusy, setAuthBusy] = useState(false); const [authMessage, setAuthMessage] = useState("");
+  const [usernameDraft, setUsernameDraft] = useState(""); const [profileMessage, setProfileMessage] = useState(""); const [profileBusy, setProfileBusy] = useState(false); const profileFileRef = useRef<HTMLInputElement>(null);
   const [saveState, setSaveState] = useState<"guardando" | "guardado" | "error">("guardando"); const [menuOpen, setMenuOpen] = useState(false); const [search, setSearch] = useState("");
   const [pdfState, setPdfState] = useState<"idle" | "reading" | "ready" | "error">("idle"); const [pdfText, setPdfText] = useState(""); const [notice, setNotice] = useState(""); const fileRef = useRef<HTMLInputElement>(null);
   const [selectedGameId, setSelectedGameId] = useState(""); const [manualMinute, setManualMinute] = useState(0); const [manualSecond, setManualSecond] = useState(0); const [annotationNote, setAnnotationNote] = useState(""); const [playerReady, setPlayerReady] = useState(false); const [analysisFullscreen, setAnalysisFullscreen] = useState(false);
@@ -184,8 +217,12 @@ export default function RefFlow() {
         const email = user.email || "";
         const metadataName = typeof user.user_metadata?.full_name === "string" ? user.user_metadata.full_name : "";
         const currentViewer: Viewer = { userId: user.id, email, displayName: metadataName || email, fullName: metadataName || null };
-        const { data: stored, error: readError } = await supabase.from("user_states").select("payload").eq("user_id", user.id).maybeSingle();
+        const [{ data: stored, error: readError }, { data: profile, error: profileError }] = await Promise.all([
+          supabase.from("user_states").select("payload").eq("user_id", user.id).maybeSingle(),
+          supabase.from("profiles").select("username").eq("user_id", user.id).maybeSingle(),
+        ]);
         if (readError) throw readError;
+        if (profileError) throw profileError;
 
         let state = stored?.payload as AppData | null | undefined;
         let requiresLegacyLink = false;
@@ -203,6 +240,7 @@ export default function RefFlow() {
           ? { ...sampleData, ...state, dataVersion: state.dataVersion ?? 0, recordedGames: state.recordedGames || [] }
           : emptyData(metadataName || email.split("@")[0] || "Árbitro");
         const normalized = normalizeData(savedState);
+        normalized.settings.username = profile?.username || normalized.settings.username;
 
         if (!stored && !requiresLegacyLink) {
           const { error: createError } = await supabase.from("user_states").upsert({
@@ -218,6 +256,7 @@ export default function RefFlow() {
         if (!active) return;
         setViewer(currentViewer);
         setData(normalized);
+        setUsernameDraft(normalized.settings.username);
         setLegacyMigrationNeeded(requiresLegacyLink);
         setSaveState("guardado");
         setAuthState("authenticated");
@@ -240,8 +279,8 @@ export default function RefFlow() {
 
   useEffect(() => {
     if (!loaded || authState !== "authenticated" || !viewer || legacyMigrationNeeded) return;
-    setSaveState("guardando");
     const t = setTimeout(() => {
+      setSaveState("guardando");
       void (async () => {
         try {
           const { error } = await supabase.from("user_states").upsert({
@@ -264,6 +303,7 @@ export default function RefFlow() {
 
   const now = new Date("2026-09-17T12:00:00"); const nextMatches = useMemo(() => data.matches.filter((m) => new Date(`${m.date}T${m.time}`) >= now).sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`)), [data.matches]);
   const total = data.matches.reduce((s, m) => s + net(m), 0); const monthTotal = data.matches.filter((m) => m.date.startsWith("2026-09")).reduce((s, m) => s + net(m), 0); const weekTotal = data.matches.filter((m) => m.date >= "2026-09-14" && m.date <= "2026-09-20").reduce((s, m) => s + net(m), 0);
+  const goalProgress = data.settings.earningsGoal > 0 ? Math.round(monthTotal / data.settings.earningsGoal * 100) : (monthTotal > 0 ? 100 : 0);
   const regionalMatches = data.matches.filter((m) => m.competition === "regional");
   const schoolMatches = data.matches.filter((m) => m.competition === "escolar");
   const regionalTotal = regionalMatches.reduce((sum, match) => sum + net(match), 0);
@@ -274,7 +314,7 @@ export default function RefFlow() {
   const updateMatch = (id: string, patch: Partial<Match>) => setData((d) => ({ ...d, matches: d.matches.map((m) => m.id === id ? { ...m, ...patch } : m) }));
   const recordedGames = data.recordedGames || []; const selectedGame = recordedGames.find((game) => game.id === selectedGameId) || recordedGames[0];
 
-  useEffect(() => { if (!selectedGame && selectedGameId) setSelectedGameId(""); if (selectedGame && !selectedGameId) setSelectedGameId(selectedGame.id); }, [selectedGame, selectedGameId]);
+  useEffect(() => { if (!selectedGame && selectedGameId) queueMicrotask(() => setSelectedGameId("")); if (selectedGame && !selectedGameId) queueMicrotask(() => setSelectedGameId(selectedGame.id)); }, [selectedGame, selectedGameId]);
   useEffect(() => { const onFullscreenChange = () => { if (document.fullscreenElement === analysisStageRef.current) setAnalysisFullscreen(true); else if (!document.fullscreenElement) setAnalysisFullscreen(false); }; document.addEventListener("fullscreenchange", onFullscreenChange); return () => document.removeEventListener("fullscreenchange", onFullscreenChange); }, []);
   useEffect(() => { if (!analysisFullscreen) return; const previous = document.body.style.overflow; document.body.style.overflow = "hidden"; return () => { document.body.style.overflow = previous; }; }, [analysisFullscreen]);
   useEffect(() => {
@@ -313,6 +353,43 @@ export default function RefFlow() {
   const exportExcel = async () => { const ExcelJS = await import("exceljs"); const wb = new ExcelJS.Workbook(); wb.creator = "RefFlow"; const months = ["SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE", "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO"]; const nums = [9,10,11,12,1,2,3,4,5,6]; months.forEach((month, index) => { const ws = wb.addWorksheet(month, { views: [{ state: "frozen", ySplit: 3 }] }); ws.mergeCells("A1:K1"); const title = ws.getCell("A1"); title.value = `${month} · TEMPORADA ${data.settings.season}`; title.font = { bold: true, size: 18, color: { argb: "FFFFFFFF" } }; title.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0B5CFF" } }; title.alignment = { horizontal: "center", vertical: "middle" }; ws.getRow(1).height = 34; ws.addRow([]); ws.addRow(["FECHA", "HORA", "LOCAL", "VISITANTE", "CATEGORÍA", "FUNCIÓN", "TARIFA", "DIETAS", "TOTAL BRUTO", "TOTAL NETO", "VÍDEO"]); const year = nums[index] >= 9 ? 2026 : 2027; data.matches.filter((m) => Number(m.date.slice(0,4)) === year && Number(m.date.slice(5,7)) === nums[index]).forEach((m) => ws.addRow([m.date, m.time, m.home, m.away, m.category, m.role, m.gross, m.diets, m.gross + m.diets, net(m), m.video ? "Sí" : "No"])); const header = ws.getRow(3); header.font = { bold: true, color: { argb: "FFFFFFFF" } }; header.height = 28; header.eachCell((cell, col) => { cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: col <= 2 ? "FF29415F" : col <= 6 ? "FF0B5CFF" : col <= 8 ? "FFFF8A1D" : "FF16A085" } }; cell.alignment = { horizontal: "center", vertical: "middle" }; }); const last = Math.max(4, ws.rowCount); const totalRow = ws.addRow(["", "", "", "", "", "TOTAL", "", "", { formula: `SUM(I4:I${last})` }, { formula: `SUM(J4:J${last})` }, ""]); totalRow.font = { bold: true }; totalRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE7F0FF" } }; [7,8,9,10].forEach((col) => { ws.getColumn(col).numFmt = '#,##0.00 [$€-es-ES]'; }); ws.columns = [{ width: 13 }, { width: 9 }, { width: 23 }, { width: 23 }, { width: 22 }, { width: 20 }, { width: 12 }, { width: 12 }, { width: 15 }, { width: 15 }, { width: 10 }]; }); const summary = wb.addWorksheet("RESUMEN"); summary.columns = [{ width: 28 }, { width: 18 }]; summary.addRow(["REFFLOW · RESUMEN", `Temporada ${data.settings.season}`]); summary.addRow([]); summary.addRow(["Esta semana", weekTotal]); summary.addRow(["Este mes", monthTotal]); summary.addRow(["Toda la temporada", total]); summary.addRow(["Partidos", data.matches.length]); summary.getRow(1).font = { bold: true, size: 18, color: { argb: "FFFFFFFF" } }; summary.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF07152D" } }; [3,4,5].forEach((r) => summary.getCell(r,2).numFmt = '#,##0.00 [$€-es-ES]'); const buffer = await wb.xlsx.writeBuffer(); saveBlob(new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), `RefFlow_Temporada_${data.settings.season.replace("/", "-")}.xlsx`); };
 
   const currentLabel = nav.find((item) => item.id === view)?.label;
+  const saveUsername = async () => {
+    if (!viewer) return;
+    const username = normalizeUsername(usernameDraft);
+    if (!/^[a-z0-9][a-z0-9._-]{2,23}$/.test(username)) {
+      setProfileMessage("Usa entre 3 y 24 caracteres: letras, números, punto, guion o guion bajo.");
+      return;
+    }
+    setProfileBusy(true); setProfileMessage("");
+    const { error } = await supabase.from("profiles").upsert({
+      user_id: viewer.userId,
+      username,
+      email: viewer.email,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "user_id" });
+    if (error) {
+      setProfileMessage(error.code === "23505" ? "Ese nombre de usuario ya está en uso." : "No se pudo guardar el nombre de usuario.");
+    } else {
+      setUsernameDraft(username);
+      setData((current) => ({ ...current, settings: { ...current.settings, username } }));
+      setProfileMessage("Nombre de usuario guardado. Ya puedes usarlo para iniciar sesión.");
+    }
+    setProfileBusy(false);
+  };
+  const changeProfileImage = async (file?: File) => {
+    if (!file) return;
+    setProfileBusy(true); setProfileMessage("");
+    try {
+      const profileImage = await resizeProfileImage(file);
+      setData((current) => ({ ...current, settings: { ...current.settings, profileImage } }));
+      setProfileMessage("Foto actualizada.");
+    } catch (error) {
+      setProfileMessage(error instanceof Error ? error.message : "No se pudo guardar la foto.");
+    } finally {
+      setProfileBusy(false);
+      if (profileFileRef.current) profileFileRef.current.value = "";
+    }
+  };
   const submitAuth = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setAuthBusy(true);
@@ -327,24 +404,32 @@ export default function RefFlow() {
         if (error) throw error;
         if (!result.session) setAuthMessage("Cuenta creada. Revisa tu correo para confirmar el acceso y después vuelve a RefFlow.");
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email: authEmail.trim(), password: authPassword });
-        if (error) throw error;
+        const identifier = authEmail.trim();
+        if (identifier.includes("@")) {
+          const { error } = await supabase.auth.signInWithPassword({ email: identifier, password: authPassword });
+          if (error) throw error;
+        } else {
+          const { data: loginData, error: loginError } = await supabase.functions.invoke("login-with-username", { body: { username: normalizeUsername(identifier), password: authPassword } });
+          if (loginError || !loginData?.access_token || !loginData?.refresh_token) throw new Error("Usuario/correo o contraseña incorrectos.");
+          const { error: sessionError } = await supabase.auth.setSession({ access_token: loginData.access_token, refresh_token: loginData.refresh_token });
+          if (sessionError) throw sessionError;
+        }
       }
     } catch (error) {
-      setAuthMessage(error instanceof Error ? error.message : "No se pudo completar el acceso.");
+      setAuthMessage(authMode === "login" ? "Usuario/correo o contraseña incorrectos." : error instanceof Error ? error.message : "No se pudo completar el acceso.");
     } finally {
       setAuthBusy(false);
     }
   };
 
   if (!loaded || authState === "loading") return <main className="auth-screen"><div className="auth-card loading-card"><img className="auth-logo" src="/favicon.svg" alt="RefFlow" /><h1>Cargando RefFlow…</h1><p>Preparando tu espacio privado.</p></div></main>;
-  if (authState === "anonymous") return <main className="auth-screen"><section className="auth-card"><img className="auth-logo" src="/favicon.svg" alt="RefFlow" /><p className="auth-kicker">REFFLOW</p><h1>Tu arbitraje, organizado</h1><p className="auth-copy">Tus designaciones, ganancias y análisis estarán sincronizados en cualquier versión de RefFlow.</p><div className="auth-tabs"><button type="button" className={authMode === "login" ? "active" : ""} onClick={() => { setAuthMode("login"); setAuthMessage(""); }}>Iniciar sesión</button><button type="button" className={authMode === "signup" ? "active" : ""} onClick={() => { setAuthMode("signup"); setAuthMessage(""); }}>Crear cuenta</button></div><form className="auth-form" onSubmit={submitAuth}>{authMode === "signup" && <label>Nombre completo<Input value={authName} onChange={(event) => setAuthName(event.target.value)} autoComplete="name" required /></label>}<label>Correo electrónico<Input type="email" value={authEmail} onChange={(event) => setAuthEmail(event.target.value)} autoComplete="email" required /></label><label>Contraseña<Input type="password" value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} autoComplete={authMode === "signup" ? "new-password" : "current-password"} minLength={6} required /></label>{authMessage && <p className="auth-message">{authMessage}</p>}<button className="auth-button" type="submit" disabled={authBusy}>{authBusy ? "Comprobando…" : authMode === "signup" ? "Crear mi cuenta" : "Entrar"} <ChevronRight /></button></form><small>Acceso gratuito mediante Supabase. Cada árbitro solo puede consultar sus propios datos.</small></section></main>;
+  if (authState === "anonymous") return <main className="auth-screen"><section className="auth-card"><img className="auth-logo" src="/favicon.svg" alt="RefFlow" /><p className="auth-kicker">REFFLOW</p><h1>Tu arbitraje, organizado</h1><p className="auth-copy">Tus designaciones, ganancias y análisis estarán sincronizados en cualquier versión de RefFlow.</p><div className="auth-tabs"><button type="button" className={authMode === "login" ? "active" : ""} onClick={() => { setAuthMode("login"); setAuthMessage(""); }}>Iniciar sesión</button><button type="button" className={authMode === "signup" ? "active" : ""} onClick={() => { setAuthMode("signup"); setAuthMessage(""); }}>Crear cuenta</button></div><form className="auth-form" onSubmit={submitAuth}>{authMode === "signup" && <label>Nombre completo<Input value={authName} onChange={(event) => setAuthName(event.target.value)} autoComplete="name" required /></label>}<label>{authMode === "login" ? "Correo o nombre de usuario" : "Correo electrónico"}<Input type={authMode === "login" ? "text" : "email"} value={authEmail} onChange={(event) => setAuthEmail(event.target.value)} autoComplete="username" required /></label><label>Contraseña<Input type="password" value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} autoComplete={authMode === "signup" ? "new-password" : "current-password"} minLength={6} required /></label>{authMessage && <p className="auth-message">{authMessage}</p>}<button className="auth-button" type="submit" disabled={authBusy}>{authBusy ? "Comprobando…" : authMode === "signup" ? "Crear mi cuenta" : "Entrar"} <ChevronRight /></button></form><small>{authMode === "login" ? "Puedes entrar con tu nombre de usuario o con tu correo." : "La cuenta se crea con correo; después podrás elegir tu usuario en Ajustes."}</small></section></main>;
   const greetingName = (data.settings.name || viewer?.fullName || viewer?.displayName || "Árbitro").trim().split(/\s+/)[0];
   const initials = data.settings.name.split(" ").filter(Boolean).map((part) => part[0]).slice(0, 2).join("").toUpperCase() || "AP";
-  return <div className="app-shell"><aside className={`sidebar ${menuOpen ? "open" : ""}`}><button className="mobile-close" onClick={() => setMenuOpen(false)} aria-label="Cerrar menú"><X /></button><div className="brand"><img className="ball-logo" src="/favicon.svg" alt="" /><div><strong>RefFlow</strong><small>Temporada {data.settings.season}</small></div></div><nav>{nav.map(({ id, label, icon: Icon }) => <button key={id} className={view === id ? "active" : ""} onClick={() => { setView(id); setMenuOpen(false); }}><Icon /><span>{label}</span>{view === id && <ChevronRight className="chev" />}</button>)}</nav><div className="sync-card"><span className={saveState === "error" ? "sync-dot error" : "sync-dot"} /><div><strong>{saveState === "guardando" ? "Guardando…" : saveState === "error" ? "Sin conexión" : "Todo guardado"}</strong><small>Sincronizado con Supabase</small></div></div><div className="profile"><span>{initials}</span><div><strong>{data.settings.name}</strong><small>{viewer?.email}</small></div><button type="button" onClick={() => void supabase.auth.signOut()} aria-label="Cerrar sesión">Salir</button></div></aside>{menuOpen && <button className="scrim" onClick={() => setMenuOpen(false)} aria-label="Cerrar menú" />}
+  return <div className="app-shell"><aside className={`sidebar ${menuOpen ? "open" : ""}`}><button className="mobile-close" onClick={() => setMenuOpen(false)} aria-label="Cerrar menú"><X /></button><div className="brand"><img className="ball-logo" src="/favicon.svg" alt="" /><div><strong>RefFlow</strong><small>Temporada {data.settings.season}</small></div></div><nav>{nav.map(({ id, label, icon: Icon }) => <button key={id} className={view === id ? "active" : ""} onClick={() => { setView(id); setMenuOpen(false); }}><Icon /><span>{label}</span>{view === id && <ChevronRight className="chev" />}</button>)}</nav><div className="sync-card"><span className={saveState === "error" ? "sync-dot error" : "sync-dot"} /><div><strong>{saveState === "guardando" ? "Guardando…" : saveState === "error" ? "Sin conexión" : "Todo guardado"}</strong><small>Sincronizado con Supabase</small></div></div><div className="profile"><span className="profile-avatar">{data.settings.profileImage ? <img src={data.settings.profileImage} alt="Foto de perfil" /> : initials}</span><div><strong>{data.settings.name}</strong><small>{data.settings.username ? `@${data.settings.username}` : viewer?.email}</small></div><button type="button" onClick={() => void supabase.auth.signOut()} aria-label="Cerrar sesión">Salir</button></div></aside>{menuOpen && <button className="scrim" onClick={() => setMenuOpen(false)} aria-label="Cerrar menú" />}
     <main className="main-panel"><header className="topbar"><button className="menu-btn" onClick={() => setMenuOpen(true)} aria-label="Abrir menú"><Menu /></button><div><p>RefFlow</p><h1>{currentLabel}</h1></div><div className="top-actions"><div className="search"><Search /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar partido…" /></div>{view === "grabados" ? <VideoDialog onAdd={(game) => { setData((d) => ({ ...d, recordedGames: [...(d.recordedGames || []), game] })); setSelectedGameId(game.id); }} /> : <MatchDialog competition={activeCompetition} rates={data.rates} onAdd={(m) => setData((d) => ({ ...d, matches: [m, ...d.matches] }))} />}</div></header>{notice && <div className="notice"><ShieldCheck /><span>{notice}</span><button onClick={() => setNotice("")}><X /></button></div>}{legacyMigrationNeeded && <div className="notice legacy-notice"><ShieldCheck /><span>¿Ya usabas RefFlow? Conecta una vez tu acceso anterior para recuperar tus datos.</span><a href="/signin-with-chatgpt?return_to=%2F" target="_top">Recuperar datos</a><button onClick={() => setLegacyMigrationNeeded(false)}>Empezar sin datos anteriores</button></div>}
 
-      {view === "inicio" && <section className="content dashboard"><div className="welcome"><div><p>Jueves, 17 de septiembre</p><h2>Hola, {greetingName} <span>👋</span></h2><small>Tienes {nextMatches.length} designaciones próximas.</small></div><button onClick={() => setView("importar")}><UploadCloud /> Importar designaciones</button></div><div className="kpi-grid"><article className="kpi primary"><div><span>ESTA SEMANA</span><strong>{money(weekTotal)}</strong><small>2 partidos</small></div><div className="kpi-icon"><WalletCards /></div></article><article className="kpi"><div><span>ESTE MES</span><strong>{money(monthTotal)}</strong><small>Septiembre</small></div><div className="kpi-icon orange"><BarChart3 /></div></article><article className="kpi"><div><span>TEMPORADA</span><strong>{money(total)}</strong><small>{data.matches.length} partidos</small></div><div className="kpi-icon green"><Trophy /></div></article></div><div className="dashboard-grid"><section className="panel upcoming"><div className="panel-heading"><div><p>PRÓXIMAS DESIGNACIONES</p><h3>Tu fin de semana</h3></div><button onClick={() => setView("regionales")}>Ver regionales <ChevronRight /></button></div>{nextMatches.slice(0,3).map((m, i) => <article className={`match-row ${i === 0 ? "featured" : ""}`} key={m.id}><div className="date-box"><strong>{new Date(`${m.date}T12:00`).getDate()}</strong><span>{new Intl.DateTimeFormat("es-ES", { month: "short" }).format(new Date(`${m.date}T12:00`)).toUpperCase()}</span></div><div className="match-main"><span className="category">{m.category}</span><h4>{m.home} <em>vs</em> {m.away}</h4><p><Clock3 /> {m.time} <MapPin /> {m.venue}</p></div><div className="match-side"><strong>{money(net(m))}</strong><span>Neto estimado</span><button onClick={() => googleCalendar(m)}><CalendarDays /> Calendario</button></div></article>)}</section><aside className="side-stack"><section className="panel earnings"><div className="panel-heading"><div><p>GANANCIAS</p><h3>Septiembre</h3></div><CircleEuro /></div><div className="ring"><div><strong>{Math.round(monthTotal / 250 * 100)}%</strong><span>del objetivo</span></div></div><div className="earn-row"><span>Cobrado</span><strong>{money(monthTotal)}</strong></div><div className="earn-row"><span>Objetivo</span><strong>250,00 €</strong></div><button onClick={() => setView("ganancias")}>Ver desglose <ChevronRight /></button></section><section className="excel-card"><div className="excel-icon"><FileSpreadsheet /></div><div><h3>Excel de temporada</h3><p>Genera tu hoja actualizada con todos los meses.</p><button onClick={exportExcel}><Download /> Descargar .xlsx</button></div></section></aside></div></section>}
+      {view === "inicio" && <section className="content dashboard"><div className="welcome"><div><p>Jueves, 17 de septiembre</p><h2>Hola, {greetingName} <span>👋</span></h2><small>Tienes {nextMatches.length} designaciones próximas.</small></div><button onClick={() => setView("importar")}><UploadCloud /> Importar designaciones</button></div><div className="kpi-grid"><article className="kpi primary"><div><span>ESTA SEMANA</span><strong>{money(weekTotal)}</strong><small>2 partidos</small></div><div className="kpi-icon"><WalletCards /></div></article><article className="kpi"><div><span>ESTE MES</span><strong>{money(monthTotal)}</strong><small>Septiembre</small></div><div className="kpi-icon orange"><BarChart3 /></div></article><article className="kpi"><div><span>TEMPORADA</span><strong>{money(total)}</strong><small>{data.matches.length} partidos</small></div><div className="kpi-icon green"><Trophy /></div></article></div><div className="dashboard-grid"><section className="panel upcoming"><div className="panel-heading"><div><p>PRÓXIMAS DESIGNACIONES</p><h3>Tu fin de semana</h3></div><button onClick={() => setView("regionales")}>Ver regionales <ChevronRight /></button></div>{nextMatches.slice(0,3).map((m, i) => <article className={`match-row ${i === 0 ? "featured" : ""}`} key={m.id}><div className="date-box"><strong>{new Date(`${m.date}T12:00`).getDate()}</strong><span>{new Intl.DateTimeFormat("es-ES", { month: "short" }).format(new Date(`${m.date}T12:00`)).toUpperCase()}</span></div><div className="match-main"><span className="category">{m.category}</span><h4>{m.home} <em>vs</em> {m.away}</h4><p><Clock3 /> {m.time} <MapPin /> {m.venue}</p></div><div className="match-side"><strong>{money(net(m))}</strong><span>Neto estimado</span><button onClick={() => googleCalendar(m)}><CalendarDays /> Calendario</button></div></article>)}</section><aside className="side-stack"><section className="panel earnings"><div className="panel-heading"><div><p>GANANCIAS</p><h3>Septiembre</h3></div><CircleEuro /></div><div className="ring"><div><strong>{goalProgress}%</strong><span>del objetivo</span></div></div><div className="earn-row"><span>Cobrado</span><strong>{money(monthTotal)}</strong></div><div className="earn-row"><span>Objetivo</span><strong>{money(data.settings.earningsGoal)}</strong></div><button onClick={() => setView("ganancias")}>Ver desglose <ChevronRight /></button></section><section className="excel-card"><div className="excel-icon"><FileSpreadsheet /></div><div><h3>Excel de temporada</h3><p>Genera tu hoja actualizada con todos los meses.</p><button onClick={exportExcel}><Download /> Descargar .xlsx</button></div></section></aside></div></section>}
 
       {view === "importar" && <section className="content narrow"><div className="section-intro"><p>IMPORTAR DESIGNACIONES</p><h2>Sube el PDF de la federación</h2><span>RefFlow extraerá el texto y preparará tus partidos para revisarlos antes de guardar.</span></div><input ref={fileRef} hidden type="file" accept="application/pdf" onChange={(e) => importPdf(e.target.files?.[0])} /><button className={`drop-zone ${pdfState}`} onClick={() => fileRef.current?.click()} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); importPdf(e.dataTransfer.files[0]); }}><span className="drop-icon"><FileUp /></span><strong>{pdfState === "reading" ? "Analizando el PDF…" : pdfState === "ready" ? "PDF leído correctamente" : pdfState === "error" ? "No se pudo leer ese archivo" : "Arrastra aquí el PDF de designaciones"}</strong><small>{pdfState === "ready" ? "Comprueba el texto detectado antes de crear el borrador" : "o pulsa para seleccionarlo · máximo 20 MB"}</small><span className="fake-button">Seleccionar PDF</span></button>{pdfState === "ready" && <div className="panel pdf-result"><div className="panel-heading"><div><p>TEXTO DETECTADO</p><h3>Resultado del análisis</h3></div><Check /></div><pre>{pdfText.slice(0, 3000) || "El PDF no contiene texto seleccionable."}</pre><div className="pdf-actions"><Button variant="outline" onClick={() => { setPdfState("idle"); setPdfText(""); }}>Descartar</Button><Button variant="outline" onClick={() => createDraft("escolar")}>Crear escolar</Button><Button className="primary-btn" onClick={() => createDraft("regional")}>Crear regional</Button></div></div>}<div className="info-strip"><ShieldCheck /><div><strong>Tú tienes siempre la última palabra</strong><span>Ningún partido se guarda ni se añade al calendario sin que antes lo revises.</span></div></div></section>}
 
@@ -353,7 +438,7 @@ export default function RefFlow() {
       {view === "grabados" && <section className="content video-analysis-page"><div className="page-heading"><div><p>ANÁLISIS DE VÍDEO</p><h2>Partidos grabados</h2></div><VideoDialog onAdd={(game) => { setData((d) => ({ ...d, recordedGames: [...(d.recordedGames || []), game] })); setSelectedGameId(game.id); }} /></div>
         {recordedGames.length === 0 ? <div className="panel video-empty"><span><Video /></span><h3>Añade tu primer partido</h3><p>Pega un enlace de YouTube y podrás guardar acciones en el minuto y segundo exactos.</p><VideoDialog onAdd={(game) => { setData((d) => ({ ...d, recordedGames: [game] })); setSelectedGameId(game.id); }} /></div> : <div className="video-workspace">
           <aside className="panel video-library"><div className="video-library-title"><div><p>VÍDEOS</p><strong>{recordedGames.length} {recordedGames.length === 1 ? "partido" : "partidos"}</strong></div><Video /></div>{recordedGames.map((game) => <button key={game.id} className={selectedGame?.id === game.id ? "active" : ""} onClick={() => setSelectedGameId(game.id)}><span className="video-list-icon"><Play /></span><span><strong>{game.title}</strong><small>{game.annotations.length} anotaciones</small></span><ChevronRight /></button>)}</aside>
-          {selectedGame && <div className="analyzer-main"><div ref={analysisStageRef} className={`analysis-stage ${analysisFullscreen ? "analysis-fullscreen" : ""}`}><section className="panel player-panel"><div className="player-heading"><div><p>ANALIZANDO</p><h3>{selectedGame.title}</h3></div><div className="player-heading-actions"><button className="fullscreen-toggle" onClick={toggleAnalysisFullscreen} aria-label={analysisFullscreen ? "Salir de pantalla completa" : "Analizar a pantalla completa"}>{analysisFullscreen ? <Minimize2 /> : <Maximize2 />}<span>{analysisFullscreen ? "Salir" : "Pantalla completa"}</span></button><a href={selectedGame.youtubeUrl} target="_blank" rel="noreferrer">Abrir en YouTube <ExternalLink /></a></div></div><div className="youtube-frame"><div ref={playerMountRef} /></div><div className="capture-bar"><div className="time-inputs"><TimerReset /><label>Min<input type="number" min="0" value={manualMinute} onChange={(e) => setManualMinute(Math.max(0, Number(e.target.value)))} /></label><span>:</span><label>Seg<input type="number" min="0" max="59" value={manualSecond} onChange={(e) => setManualSecond(Math.min(59, Math.max(0, Number(e.target.value))))} /></label></div><button onClick={() => { const seconds = currentSeconds(); setManualMinute(Math.floor(seconds / 60)); setManualSecond(seconds % 60); }}><Clock3 /> Capturar instante actual</button><strong>{timeLabel(currentSeconds())}</strong></div><div className="note-box"><textarea value={annotationNote} onChange={(e) => setAnnotationNote(e.target.value)} placeholder="Nota opcional: qué ocurrió, posición, decisión…" /><button disabled={!annotationNote.trim()} onClick={() => addAnnotation("Nota libre", "Anotación")}>Guardar nota</button></div></section>
+          {selectedGame && <div className="analyzer-main"><div ref={analysisStageRef} className={`analysis-stage ${analysisFullscreen ? "analysis-fullscreen" : ""}`}><section className="panel player-panel"><div className="player-heading"><div><p>ANALIZANDO</p><h3>{selectedGame.title}</h3></div><div className="player-heading-actions"><button className="fullscreen-toggle" onClick={toggleAnalysisFullscreen} aria-label={analysisFullscreen ? "Salir de pantalla completa" : "Analizar a pantalla completa"}>{analysisFullscreen ? <Minimize2 /> : <Maximize2 />}<span>{analysisFullscreen ? "Salir" : "Pantalla completa"}</span></button><a href={selectedGame.youtubeUrl} target="_blank" rel="noreferrer">Abrir en YouTube <ExternalLink /></a></div></div><div className="youtube-frame"><div ref={playerMountRef} /></div><div className="capture-bar"><div className="time-inputs"><TimerReset /><label>Min<input type="number" min="0" value={manualMinute} onChange={(e) => setManualMinute(Math.max(0, Number(e.target.value)))} /></label><span>:</span><label>Seg<input type="number" min="0" max="59" value={manualSecond} onChange={(e) => setManualSecond(Math.min(59, Math.max(0, Number(e.target.value))))} /></label></div><button onClick={() => { const seconds = currentSeconds(); setManualMinute(Math.floor(seconds / 60)); setManualSecond(seconds % 60); }}><Clock3 /> Capturar instante actual</button><strong>{timeLabel(manualMinute * 60 + manualSecond)}</strong></div><div className="note-box"><textarea value={annotationNote} onChange={(e) => setAnnotationNote(e.target.value)} placeholder="Nota opcional: qué ocurrió, posición, decisión…" /><button disabled={!annotationNote.trim()} onClick={() => addAnnotation("Nota libre", "Anotación")}>Guardar nota</button></div></section>
             <section className="panel quick-tags"><div className="panel-heading"><div><p>ANOTACIONES RÁPIDAS</p><h3>Pulsa para guardar en {playerReady ? "el instante actual" : timeLabel(manualMinute * 60 + manualSecond)}</h3></div><div className="quick-tags-tools"><Tag /><button className="quick-tags-exit" onClick={toggleAnalysisFullscreen} aria-label="Salir de pantalla completa"><Minimize2 /></button></div></div><div className="tag-groups">{annotationGroups.map((group) => <div className="tag-group" key={group.name} style={{ borderLeftColor: group.color }}><div className="tag-group-title"><span style={{ background: group.color }} /><strong>{group.name}</strong></div><div className="tag-buttons">{group.items.map((item) => <button key={item} onClick={() => addAnnotation(group.name, item)}><span style={{ background: group.color }} />{item}</button>)}</div></div>)}</div></section></div>
             <section className="panel annotations-panel"><div className="panel-heading"><div><p>LÍNEA DE TIEMPO</p><h3>{selectedGame.annotations.length} anotaciones</h3></div><div className="timeline-actions"><button className="report-button" onClick={exportVideoReport} disabled={selectedGame.annotations.length === 0}><FileText /> Finalizar y descargar PDF</button><Clock3 /></div></div>{selectedGame.annotations.length === 0 ? <div className="annotation-empty">Reproduce el vídeo y pulsa una etiqueta rápida para crear la primera anotación.</div> : <div className="annotation-list">{[...selectedGame.annotations].sort((a,b) => a.seconds - b.seconds).map((annotation) => <div className="annotation-row" key={annotation.id}><button className="timestamp" onClick={() => seekTo(annotation.seconds)} title="Reproducir desde 3 segundos antes" aria-label={`Reproducir ${annotation.label} desde 3 segundos antes`}><Play /> {timeLabel(annotation.seconds)}</button><span className="annotation-color" style={{ background: annotationGroups.find((group) => group.name === annotation.category)?.color || "#0b5cff" }} /><div><strong>{annotation.label}</strong><small>{annotation.category}{annotation.note ? ` · ${annotation.note}` : ""}</small></div><button className="annotation-delete" onClick={() => setData((d) => ({ ...d, recordedGames: (d.recordedGames || []).map((game) => game.id === selectedGame.id ? { ...game, annotations: game.annotations.filter((item) => item.id !== annotation.id) } : game) }))} aria-label="Eliminar anotación"><Trash2 /></button></div>)}</div>}</section>
           </div>}
@@ -369,7 +454,15 @@ export default function RefFlow() {
 
       {view === "tarifas" && <section className="content"><div className="page-heading"><div><p>TARIFAS</p><h2>Temporada {data.settings.season}</h2></div><Button className="primary-btn" onClick={() => setData((d) => ({ ...d, rates: [...d.rates, { id: makeId(), category: "Nueva categoría", role: "Árbitro", amount: 0, retention: RETENTION_RATE }] }))}><Plus /> Nueva tarifa</Button></div><div className="panel table-wrap"><table><thead><tr><th>Competición</th><th>Función</th><th>Tarifa</th><th>Retención</th><th>Neto</th><th></th></tr></thead><tbody>{data.rates.map((r) => <tr key={r.id}><td><Input value={r.category} onChange={(e) => setData((d) => ({ ...d, rates: d.rates.map((x) => x.id === r.id ? { ...x, category: e.target.value } : x) }))} /></td><td><Input value={r.role} onChange={(e) => setData((d) => ({ ...d, rates: d.rates.map((x) => x.id === r.id ? { ...x, role: e.target.value } : x) }))} /></td><td><Input type="number" step="0.01" value={r.amount} onChange={(e) => setData((d) => ({ ...d, rates: d.rates.map((x) => x.id === r.id ? { ...x, amount: Number(e.target.value) } : x) }))} /></td><td><Input type="number" value={RETENTION_RATE} readOnly aria-label="Retención fija del 2 por ciento" /></td><td><strong>{money(r.amount * (1 - RETENTION_RATE / 100))}</strong></td><td><button className="icon-delete" onClick={() => setData((d) => ({ ...d, rates: d.rates.filter((x) => x.id !== r.id) }))}><X /></button></td></tr>)}</tbody></table></div></section>}
 
-      {view === "ajustes" && <section className="content narrow"><div className="section-intro"><p>AJUSTES</p><h2>Personaliza RefFlow</h2><span>Estos datos ayudan a identificarte en las designaciones y organizar la temporada.</span></div><div className="panel settings-form"><label>Nombre tal como aparece en las designaciones<Input value={data.settings.name} onChange={(e) => setData((d) => ({ ...d, settings: { ...d.settings, name: e.target.value } }))} /></label><label>Temporada<Input value={data.settings.season} onChange={(e) => setData((d) => ({ ...d, settings: { ...d.settings, season: e.target.value } }))} /></label><div className="setting-row"><div><strong>Google Calendar</strong><span>Los botones de cada partido abren el evento listo para confirmar.</span></div><span className="status-ready"><Check /> Disponible</span></div><div className="setting-row"><div><strong>Instalar la aplicación</strong><span>En Android usa “Añadir a pantalla de inicio”; en Windows, “Instalar aplicación”.</span></div><span className="status-ready"><Check /> PWA lista</span></div></div></section>}
+      {view === "ajustes" && <section className="content narrow"><div className="section-intro"><p>AJUSTES</p><h2>Personaliza RefFlow</h2><span>Estos datos ayudan a identificarte en las designaciones y organizar la temporada.</span></div><div className="panel settings-form">
+        <div className="settings-profile wide"><span className="settings-avatar">{data.settings.profileImage ? <img src={data.settings.profileImage} alt="Foto de perfil" /> : initials}</span><div><strong>Foto de perfil</strong><span>Se recorta automáticamente y solo se guarda en tu cuenta.</span><div className="settings-photo-actions"><input ref={profileFileRef} hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => void changeProfileImage(event.target.files?.[0])} /><Button type="button" variant="outline" disabled={profileBusy} onClick={() => profileFileRef.current?.click()}><Camera /> {data.settings.profileImage ? "Cambiar foto" : "Añadir foto"}</Button>{data.settings.profileImage && <button type="button" className="text-action" onClick={() => { setData((current) => ({ ...current, settings: { ...current.settings, profileImage: "" } })); setProfileMessage("Foto eliminada."); }}>Eliminar</button>}</div></div></div>
+        <label>Nombre tal como aparece en las designaciones<Input value={data.settings.name} onChange={(e) => setData((d) => ({ ...d, settings: { ...d.settings, name: e.target.value } }))} /></label>
+        <label>Temporada<Input value={data.settings.season} onChange={(e) => setData((d) => ({ ...d, settings: { ...d.settings, season: e.target.value } }))} /></label>
+        <label>Objetivo mensual de ganancias<Input type="number" min="0" step="10" value={data.settings.earningsGoal} onChange={(e) => setData((d) => ({ ...d, settings: { ...d.settings, earningsGoal: Math.max(0, Number(e.target.value) || 0) } }))} /><small>Se usa en el porcentaje de la pantalla de inicio.</small></label>
+        <label>Nombre de usuario<div className="username-control"><Input value={usernameDraft} onChange={(e) => { setUsernameDraft(e.target.value); setProfileMessage(""); }} placeholder="mateo.garcia" autoComplete="username" /><Button type="button" disabled={profileBusy} onClick={() => void saveUsername()}>{profileBusy ? "Guardando…" : "Guardar usuario"}</Button></div><small>De 3 a 24 caracteres, sin espacios. Podrás iniciar sesión con este nombre o con tu correo.</small></label>
+        {profileMessage && <p className="settings-message wide">{profileMessage}</p>}
+        <div className="setting-row"><div><strong>Google Calendar</strong><span>Los botones de cada partido abren el evento listo para confirmar.</span></div><span className="status-ready"><Check /> Disponible</span></div><div className="setting-row"><div><strong>Instalar la aplicación</strong><span>En Android usa “Añadir a pantalla de inicio”; en Windows, “Instalar aplicación”.</span></div><span className="status-ready"><Check /> PWA lista</span></div>
+      </div></section>}
     </main><nav className="bottom-nav">{nav.filter(({ id }) => ["inicio", "importar", "regionales", "escolares", "ganancias"].includes(id)).map(({ id, label, icon: Icon }) => <button key={id} className={view === id ? "active" : ""} onClick={() => setView(id)}><Icon /><span>{label}</span></button>)}</nav>
   </div>;
 }
