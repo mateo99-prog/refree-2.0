@@ -8,20 +8,22 @@ import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { parseFbclmDesignationPages } from "@/lib/fbclm-pdf";
+import type { ParsedDesignationPdf, PdfOfficial, PdfTextItem } from "@/lib/fbclm-pdf";
 import { supabase } from "@/lib/supabase";
 
 type View = "inicio" | "importar" | "regionales" | "escolares" | "grabados" | "ganancias" | "arbitros" | "tarifas" | "ajustes";
 type MatchCompetition = "regional" | "escolar";
-type Match = { id: string; competition: MatchCompetition; date: string; time: string; home: string; away: string; category: string; role: string; venue: string; gross: number; diets: number; retention: number; partners: string[]; video: boolean; status: "confirmado" | "pendiente" };
+type Match = { id: string; competition: MatchCompetition; matchNumber?: string; date: string; time: string; home: string; away: string; category: string; role: string; venue: string; gross: number; diets: number; retention: number; partners: string[]; video: boolean; status: "confirmado" | "pendiente" };
 type Rate = { id: string; category: string; role: string; amount: number; retention: number };
-type Contact = { id: string; name: string; phone: string; role: string };
+type Contact = { id: string; name: string; phone: string; role: string; licenseId?: string; city?: string };
 type VideoAnnotation = { id: string; seconds: number; category: string; label: string; note: string; createdAt: string };
 type RecordedGame = { id: string; title: string; youtubeUrl: string; youtubeId: string; createdAt: string; annotations: VideoAnnotation[] };
 type AppData = { dataVersion: number; matches: Match[]; rates: Rate[]; contacts: Contact[]; recordedGames: RecordedGame[]; settings: { name: string; season: string; earningsGoal: number; username: string; profileImage: string } };
 type Viewer = { userId: string; displayName: string; email: string; fullName: string | null };
 
 const sampleData: AppData = {
-  dataVersion: 3,
+  dataVersion: 4,
   matches: [
     { id: "p1", competition: "regional", date: "2026-09-19", time: "18:30", home: "CB Toledo", away: "Baloncesto Talavera", category: "Junior Autonómico", role: "Árbitro auxiliar", venue: "Pabellón Javier Lozano Cid", gross: 32, diets: 8, retention: 2, partners: ["Álvaro Martín"], video: true, status: "confirmado" },
     { id: "p2", competition: "regional", date: "2026-09-20", time: "12:00", home: "CEI Toledo", away: "CB La Sagra", category: "Infantil Regional", role: "Árbitro", venue: "Pabellón IES Universidad Laboral", gross: 24, diets: 0, retention: 2, partners: ["Lucía Gómez"], video: false, status: "confirmado" },
@@ -36,14 +38,14 @@ const sampleData: AppData = {
   recordedGames: [],
   settings: { name: "Árbitro", season: "2026/27", earningsGoal: 250, username: "", profileImage: "" },
 };
-const emptyData = (name: string): AppData => ({ dataVersion: 3, matches: [], rates: [], contacts: [], recordedGames: [], settings: { name, season: "2026/27", earningsGoal: 250, username: "", profileImage: "" } });
+const emptyData = (name: string): AppData => ({ dataVersion: 4, matches: [], rates: [], contacts: [], recordedGames: [], settings: { name, season: "2026/27", earningsGoal: 250, username: "", profileImage: "" } });
 
 const nav: { id: View; label: string; icon: LucideIcon }[] = [
   { id: "inicio", label: "Inicio", icon: Home }, { id: "importar", label: "Importar", icon: FileUp }, { id: "regionales", label: "Regionales", icon: CalendarDays }, { id: "escolares", label: "Partidos escolares", icon: Trophy }, { id: "grabados", label: "Partidos grabados", icon: Video },
   { id: "ganancias", label: "Ganancias", icon: BarChart3 }, { id: "arbitros", label: "Árbitros", icon: Users }, { id: "tarifas", label: "Tarifas", icon: CircleEuro }, { id: "ajustes", label: "Ajustes", icon: Settings },
 ];
 const RETENTION_RATE = 2;
-const CURRENT_DATA_VERSION = 3;
+const CURRENT_DATA_VERSION = 4;
 const SAMPLE_CONTACT_IDS = new Set(["a1", "a2"]);
 const normalizeData = (state: AppData): AppData => {
   const removeSampleContacts = (state.dataVersion || 0) < 1;
@@ -66,6 +68,26 @@ const normalizeData = (state: AppData): AppData => {
 const money = (n: number) => new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(n);
 const net = (m: Match) => m.gross * (1 - RETENTION_RATE / 100) + m.diets;
 const normalizeRateField = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().replace(/\s+/g, " ").toLocaleLowerCase("es-ES");
+const canonicalRole = (value: string) => {
+  const role = normalizeRateField(value).replace(/[.]/g, "");
+  const aliases: Record<string, string> = {
+    ap: "arbitro principal", arbitro: "arbitro principal", "arbitro principal": "arbitro principal",
+    aa: "arbitro auxiliar", "arbitro auxiliar": "arbitro auxiliar",
+    an: "anotador", anotador: "anotador",
+    cr: "cronometrador", cronometrador: "cronometrador",
+    op: "operador rll", "operador rll": "operador rll", "operador reloj lanzamiento": "operador rll", "operador reloj de lanzamiento": "operador rll",
+    aj: "ayudante de anotador", "ayudante de anotador": "ayudante de anotador",
+    "3a": "tercer arbitro", "tercer arbitro": "tercer arbitro",
+    ia: "informador arbitral", "informador arbitral": "informador arbitral",
+    ax: "auxiliar de mesa en pruebas", "auxiliar de mesa en pruebas": "auxiliar de mesa en pruebas",
+    ta: "tutor arbitral", "tutor arbitral": "tutor arbitral",
+    raf: "representante actividades federativas", "representante de actividades federativas": "representante actividades federativas",
+    it: "informador auxiliar de mesa", "informador auxiliar de mesa": "informador auxiliar de mesa",
+    ca: "consultor arbitral", "consultor arbitral": "consultor arbitral",
+    fi: "filmador", filmador: "filmador",
+  };
+  return aliases[role] || role;
+};
 const normalizeUsername = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
 const resizeProfileImage = (file: File) => new Promise<string>((resolve, reject) => {
   if (!file.type.startsWith("image/")) { reject(new Error("Selecciona una imagen JPG, PNG o WebP.")); return; }
@@ -94,7 +116,7 @@ const findSavedRate = (rates: Rate[], category: string, role: string) => {
   const normalizedCategory = normalizeRateField(category);
   const normalizedRole = normalizeRateField(role);
   if (!normalizedCategory || !normalizedRole) return undefined;
-  return rates.find((rate) => normalizeRateField(rate.category) === normalizedCategory && normalizeRateField(rate.role) === normalizedRole);
+  return rates.find((rate) => normalizeRateField(rate.category) === normalizedCategory && canonicalRole(rate.role) === canonicalRole(normalizedRole));
 };
 const applySavedRate = (match: Match, rates: Rate[]): Match => {
   const savedRate = findSavedRate(rates, match.category, match.role);
@@ -117,6 +139,34 @@ const parseYouTubeId = (value: string) => {
 const timeLabel = (seconds: number) => `${Math.floor(seconds / 60).toString().padStart(2, "0")}:${Math.floor(seconds % 60).toString().padStart(2, "0")}`;
 const videoAt = (game: RecordedGame, seconds: number) => `https://www.youtube.com/watch?v=${encodeURIComponent(game.youtubeId)}&t=${Math.max(0, Math.floor(seconds) - 3)}s`;
 const makeId = () => typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+const sameContact = (contact: Contact, official: PdfOfficial) => Boolean(
+  (contact.licenseId && official.licenseId && contact.licenseId === official.licenseId)
+  || normalizeRateField(contact.name) === normalizeRateField(official.name)
+);
+const uniqueImportedOfficials = (parsed: ParsedDesignationPdf) => {
+  const officials: PdfOfficial[] = [];
+  parsed.matches.flatMap((match) => match.officials).forEach((official) => {
+    if (official.licenseId && official.licenseId === parsed.designatedLicenseId) return;
+    if (!officials.some((saved) => (saved.licenseId && official.licenseId && saved.licenseId === official.licenseId) || normalizeRateField(saved.name) === normalizeRateField(official.name))) officials.push(official);
+  });
+  return officials;
+};
+const mergeImportedOfficials = (contacts: Contact[], officials: PdfOfficial[]) => {
+  let added = 0; let updated = 0;
+  const merged = [...contacts];
+  officials.forEach((official) => {
+    const index = merged.findIndex((contact) => sameContact(contact, official));
+    if (index === -1) {
+      merged.push({ id: makeId(), name: official.name, phone: official.phone, role: official.role, licenseId: official.licenseId || undefined, city: official.city || undefined });
+      added += 1;
+      return;
+    }
+    const current = merged[index];
+    const next = { ...current, phone: current.phone || official.phone, role: current.role === "Árbitro" ? official.role : current.role, licenseId: current.licenseId || official.licenseId || undefined, city: current.city || official.city || undefined };
+    if (JSON.stringify(next) !== JSON.stringify(current)) { merged[index] = next; updated += 1; }
+  });
+  return { contacts: merged, added, updated };
+};
 function saveBlob(blob: Blob, name: string) { const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
 async function assetDataUrl(path: string) { const response = await fetch(path); if (!response.ok) throw new Error("No se pudo cargar el recurso"); const blob = await response.blob(); return await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = () => reject(reader.error); reader.readAsDataURL(blob); }); }
 function googleCalendar(m: Match) {
@@ -196,7 +246,7 @@ export default function RefFlow() {
   const [authMode, setAuthMode] = useState<"login" | "signup">("login"); const [authEmail, setAuthEmail] = useState(""); const [authPassword, setAuthPassword] = useState(""); const [authName, setAuthName] = useState(""); const [authBusy, setAuthBusy] = useState(false); const [authMessage, setAuthMessage] = useState("");
   const [usernameDraft, setUsernameDraft] = useState(""); const [profileMessage, setProfileMessage] = useState(""); const [profileBusy, setProfileBusy] = useState(false); const profileFileRef = useRef<HTMLInputElement>(null);
   const [saveState, setSaveState] = useState<"guardando" | "guardado" | "error">("guardando"); const [menuOpen, setMenuOpen] = useState(false); const [search, setSearch] = useState("");
-  const [pdfState, setPdfState] = useState<"idle" | "reading" | "ready" | "error">("idle"); const [pdfText, setPdfText] = useState(""); const [notice, setNotice] = useState(""); const fileRef = useRef<HTMLInputElement>(null);
+  const [pdfState, setPdfState] = useState<"idle" | "reading" | "ready" | "error">("idle"); const [pdfImport, setPdfImport] = useState<ParsedDesignationPdf | null>(null); const [pdfFileName, setPdfFileName] = useState(""); const [notice, setNotice] = useState(""); const fileRef = useRef<HTMLInputElement>(null);
   const [selectedGameId, setSelectedGameId] = useState(""); const [manualMinute, setManualMinute] = useState(0); const [manualSecond, setManualSecond] = useState(0); const [annotationNote, setAnnotationNote] = useState(""); const [playerReady, setPlayerReady] = useState(false); const [analysisFullscreen, setAnalysisFullscreen] = useState(false);
   const playerMountRef = useRef<HTMLDivElement>(null); const playerRef = useRef<YouTubePlayer | null>(null); const analysisStageRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -313,6 +363,8 @@ export default function RefFlow() {
   const filtered = data.matches.filter((m) => m.competition === activeCompetition && normalizeRateField(`${m.home} ${m.away} ${m.category} ${m.venue}`).includes(normalizedSearch));
   const updateMatch = (id: string, patch: Partial<Match>) => setData((d) => ({ ...d, matches: d.matches.map((m) => m.id === id ? { ...m, ...patch } : m) }));
   const recordedGames = data.recordedGames || []; const selectedGame = recordedGames.find((game) => game.id === selectedGameId) || recordedGames[0];
+  const pdfOfficials = pdfImport ? uniqueImportedOfficials(pdfImport) : [];
+  const pdfNewOfficials = pdfOfficials.filter((official) => !data.contacts.some((contact) => sameContact(contact, official)));
 
   useEffect(() => { if (!selectedGame && selectedGameId) queueMicrotask(() => setSelectedGameId("")); if (selectedGame && !selectedGameId) queueMicrotask(() => setSelectedGameId(selectedGame.id)); }, [selectedGame, selectedGameId]);
   useEffect(() => { const onFullscreenChange = () => { if (document.fullscreenElement === analysisStageRef.current) setAnalysisFullscreen(true); else if (!document.fullscreenElement) setAnalysisFullscreen(false); }; document.addEventListener("fullscreenchange", onFullscreenChange); return () => document.removeEventListener("fullscreenchange", onFullscreenChange); }, []);
@@ -347,8 +399,51 @@ export default function RefFlow() {
     const pages = doc.getNumberOfPages(); for (let page = 1; page <= pages; page++) { doc.setPage(page); doc.setDrawColor(224, 230, 239); doc.line(16, pageHeight - 13, pageWidth - 16, pageHeight - 13); doc.setTextColor(132, 143, 159); doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.text("RefFlow · Análisis de vídeo arbitral", 16, pageHeight - 7); doc.text(`Página ${page} de ${pages}`, pageWidth - 16, pageHeight - 7, { align: "right" }); } const safeTitle = selectedGame.title.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_|_$/g, ""); doc.save(`RefFlow_Analisis_${safeTitle || "Partido"}.pdf`);
   };
 
-  const importPdf = async (file?: File) => { if (!file || file.type !== "application/pdf") { setPdfState("error"); return; } setPdfState("reading"); setPdfText(""); try { const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs"); pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/legacy/build/pdf.worker.min.mjs", import.meta.url).toString(); const pdf = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise; let text = ""; for (let i = 1; i <= pdf.numPages; i++) { const c = await (await pdf.getPage(i)).getTextContent(); text += c.items.map((item) => "str" in item ? item.str : "").join(" ") + "\n"; } setPdfText(text.trim()); setPdfState("ready"); } catch { setPdfState("error"); } };
-  const createDraft = (competition: MatchCompetition) => { const date = pdfText.match(/\b(\d{1,2})[\/-](\d{1,2})[\/-](20\d{2})\b/); const time = pdfText.match(/\b([01]?\d|2[0-3]):([0-5]\d)\b/); const d = date ? `${date[3]}-${date[2].padStart(2, "0")}-${date[1].padStart(2, "0")}` : "2026-09-26"; setData((old) => { const draft: Match = { id: makeId(), competition, date: d, time: time?.[0] || "18:00", home: "Revisar equipo local", away: "Revisar equipo visitante", category: "Pendiente de calibrar", role: "Árbitro", venue: "Revisar pabellón", gross: 0, diets: 0, retention: RETENTION_RATE, partners: [], video: false, status: "pendiente" }; return { ...old, matches: [applySavedRate(draft, old.rates), ...old.matches] }; }); setView(competition === "escolar" ? "escolares" : "regionales"); setNotice(`He creado un borrador ${competition === "escolar" ? "escolar" : "regional"}. Al completar categoría y función se aplicará la tarifa guardada que coincida.`); };
+  const importPdf = async (file?: File) => {
+    if (!file || file.type !== "application/pdf" || file.size > 20 * 1024 * 1024) { setPdfState("error"); return; }
+    setPdfState("reading"); setPdfImport(null); setPdfFileName(file.name);
+    try {
+      const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+      pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/legacy/build/pdf.worker.min.mjs", import.meta.url).toString();
+      const pdf = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
+      const pages: PdfTextItem[][] = [];
+      for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
+        const content = await (await pdf.getPage(pageNumber)).getTextContent();
+        pages.push(content.items.flatMap((item) => {
+          if (!("str" in item) || !item.str.trim()) return [];
+          return [{ page: pageNumber, x: item.transform[4], y: item.transform[5], text: item.str }];
+        }));
+      }
+      const parsed = parseFbclmDesignationPages(pages);
+      if (parsed.matches.length === 0) throw new Error("Formato no reconocido");
+      setPdfImport(parsed); setPdfState("ready");
+    } catch { setPdfImport(null); setPdfState("error"); }
+  };
+  const addPdfDesignations = (competition: MatchCompetition) => {
+    if (!pdfImport) return;
+    const officials = uniqueImportedOfficials(pdfImport);
+    const mergedContacts = mergeImportedOfficials(data.contacts, officials);
+    const existingKeys = new Set(data.matches.map((match) => match.matchNumber ? `number:${match.date}|${match.matchNumber}` : `teams:${match.date}|${match.time}|${normalizeRateField(match.home)}|${normalizeRateField(match.away)}`));
+    let skipped = 0; let importedRates = 0;
+    const matches = pdfImport.matches.flatMap((designation) => {
+      const key = designation.matchNumber ? `number:${designation.date}|${designation.matchNumber}` : `teams:${designation.date}|${designation.time}|${normalizeRateField(designation.home)}|${normalizeRateField(designation.away)}`;
+      if (existingKeys.has(key)) { skipped += 1; return []; }
+      existingKeys.add(key);
+      const partners = designation.officials.filter((official) => !pdfImport.designatedLicenseId || official.licenseId !== pdfImport.designatedLicenseId).map((official) => official.name);
+      const match: Match = { id: makeId(), competition, matchNumber: designation.matchNumber, date: designation.date, time: designation.time, home: designation.home, away: designation.away, category: designation.category, role: designation.role, venue: designation.venue || "Pabellón pendiente", gross: 0, diets: 0, retention: RETENTION_RATE, partners, video: false, status: "confirmado" };
+      if (findSavedRate(data.rates, match.category, match.role)) importedRates += 1;
+      return [applySavedRate(match, data.rates)];
+    });
+    setData((current) => ({ ...current, matches: [...matches, ...current.matches], contacts: mergedContacts.contacts }));
+    setView(competition === "escolar" ? "escolares" : "regionales");
+    setNotice(`${matches.length} ${matches.length === 1 ? "designación añadida" : "designaciones añadidas"}${importedRates ? ` · ${importedRates} con tarifa importada` : ""}${mergedContacts.added ? ` · ${mergedContacts.added} compañeros nuevos en Árbitros` : ""}${mergedContacts.updated ? ` · ${mergedContacts.updated} contactos completados` : ""}${skipped ? ` · ${skipped} duplicadas omitidas` : ""}. Revisa los datos antes de añadir el partido al calendario.`);
+    setPdfState("idle"); setPdfImport(null); setPdfFileName("");
+    if (fileRef.current) fileRef.current.value = "";
+  };
+  const discardPdf = () => {
+    setPdfState("idle"); setPdfImport(null); setPdfFileName("");
+    if (fileRef.current) fileRef.current.value = "";
+  };
 
   const exportExcel = async () => { const ExcelJS = await import("exceljs"); const wb = new ExcelJS.Workbook(); wb.creator = "RefFlow"; const months = ["SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE", "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO"]; const nums = [9,10,11,12,1,2,3,4,5,6]; months.forEach((month, index) => { const ws = wb.addWorksheet(month, { views: [{ state: "frozen", ySplit: 3 }] }); ws.mergeCells("A1:K1"); const title = ws.getCell("A1"); title.value = `${month} · TEMPORADA ${data.settings.season}`; title.font = { bold: true, size: 18, color: { argb: "FFFFFFFF" } }; title.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0B5CFF" } }; title.alignment = { horizontal: "center", vertical: "middle" }; ws.getRow(1).height = 34; ws.addRow([]); ws.addRow(["FECHA", "HORA", "LOCAL", "VISITANTE", "CATEGORÍA", "FUNCIÓN", "TARIFA", "DIETAS", "TOTAL BRUTO", "TOTAL NETO", "VÍDEO"]); const year = nums[index] >= 9 ? 2026 : 2027; data.matches.filter((m) => Number(m.date.slice(0,4)) === year && Number(m.date.slice(5,7)) === nums[index]).forEach((m) => ws.addRow([m.date, m.time, m.home, m.away, m.category, m.role, m.gross, m.diets, m.gross + m.diets, net(m), m.video ? "Sí" : "No"])); const header = ws.getRow(3); header.font = { bold: true, color: { argb: "FFFFFFFF" } }; header.height = 28; header.eachCell((cell, col) => { cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: col <= 2 ? "FF29415F" : col <= 6 ? "FF0B5CFF" : col <= 8 ? "FFFF8A1D" : "FF16A085" } }; cell.alignment = { horizontal: "center", vertical: "middle" }; }); const last = Math.max(4, ws.rowCount); const totalRow = ws.addRow(["", "", "", "", "", "TOTAL", "", "", { formula: `SUM(I4:I${last})` }, { formula: `SUM(J4:J${last})` }, ""]); totalRow.font = { bold: true }; totalRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE7F0FF" } }; [7,8,9,10].forEach((col) => { ws.getColumn(col).numFmt = '#,##0.00 [$€-es-ES]'; }); ws.columns = [{ width: 13 }, { width: 9 }, { width: 23 }, { width: 23 }, { width: 22 }, { width: 20 }, { width: 12 }, { width: 12 }, { width: 15 }, { width: 15 }, { width: 10 }]; }); const summary = wb.addWorksheet("RESUMEN"); summary.columns = [{ width: 28 }, { width: 18 }]; summary.addRow(["REFFLOW · RESUMEN", `Temporada ${data.settings.season}`]); summary.addRow([]); summary.addRow(["Esta semana", weekTotal]); summary.addRow(["Este mes", monthTotal]); summary.addRow(["Toda la temporada", total]); summary.addRow(["Partidos", data.matches.length]); summary.getRow(1).font = { bold: true, size: 18, color: { argb: "FFFFFFFF" } }; summary.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF07152D" } }; [3,4,5].forEach((r) => summary.getCell(r,2).numFmt = '#,##0.00 [$€-es-ES]'); const buffer = await wb.xlsx.writeBuffer(); saveBlob(new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), `RefFlow_Temporada_${data.settings.season.replace("/", "-")}.xlsx`); };
 
@@ -431,9 +526,9 @@ export default function RefFlow() {
 
       {view === "inicio" && <section className="content dashboard"><div className="welcome"><div><p>Jueves, 17 de septiembre</p><h2>Hola, {greetingName} <span>👋</span></h2><small>Tienes {nextMatches.length} designaciones próximas.</small></div><button onClick={() => setView("importar")}><UploadCloud /> Importar designaciones</button></div><div className="kpi-grid"><article className="kpi primary"><div><span>ESTA SEMANA</span><strong>{money(weekTotal)}</strong><small>2 partidos</small></div><div className="kpi-icon"><WalletCards /></div></article><article className="kpi"><div><span>ESTE MES</span><strong>{money(monthTotal)}</strong><small>Septiembre</small></div><div className="kpi-icon orange"><BarChart3 /></div></article><article className="kpi"><div><span>TEMPORADA</span><strong>{money(total)}</strong><small>{data.matches.length} partidos</small></div><div className="kpi-icon green"><Trophy /></div></article></div><div className="dashboard-grid"><section className="panel upcoming"><div className="panel-heading"><div><p>PRÓXIMAS DESIGNACIONES</p><h3>Tu fin de semana</h3></div><button onClick={() => setView("regionales")}>Ver regionales <ChevronRight /></button></div>{nextMatches.slice(0,3).map((m, i) => <article className={`match-row ${i === 0 ? "featured" : ""}`} key={m.id}><div className="date-box"><strong>{new Date(`${m.date}T12:00`).getDate()}</strong><span>{new Intl.DateTimeFormat("es-ES", { month: "short" }).format(new Date(`${m.date}T12:00`)).toUpperCase()}</span></div><div className="match-main"><span className="category">{m.category}</span><h4>{m.home} <em>vs</em> {m.away}</h4><p><Clock3 /> {m.time} <MapPin /> {m.venue}</p></div><div className="match-side"><strong>{money(net(m))}</strong><span>Neto estimado</span><button onClick={() => googleCalendar(m)}><CalendarDays /> Calendario</button></div></article>)}</section><aside className="side-stack"><section className="panel earnings"><div className="panel-heading"><div><p>GANANCIAS</p><h3>Septiembre</h3></div><CircleEuro /></div><div className="ring"><div><strong>{goalProgress}%</strong><span>del objetivo</span></div></div><div className="earn-row"><span>Cobrado</span><strong>{money(monthTotal)}</strong></div><div className="earn-row"><span>Objetivo</span><strong>{money(data.settings.earningsGoal)}</strong></div><button onClick={() => setView("ganancias")}>Ver desglose <ChevronRight /></button></section><section className="excel-card"><div className="excel-icon"><FileSpreadsheet /></div><div><h3>Excel de temporada</h3><p>Genera tu hoja actualizada con todos los meses.</p><button onClick={exportExcel}><Download /> Descargar .xlsx</button></div></section></aside></div></section>}
 
-      {view === "importar" && <section className="content narrow"><div className="section-intro"><p>IMPORTAR DESIGNACIONES</p><h2>Sube el PDF de la federación</h2><span>RefFlow extraerá el texto y preparará tus partidos para revisarlos antes de guardar.</span></div><input ref={fileRef} hidden type="file" accept="application/pdf" onChange={(e) => importPdf(e.target.files?.[0])} /><button className={`drop-zone ${pdfState}`} onClick={() => fileRef.current?.click()} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); importPdf(e.dataTransfer.files[0]); }}><span className="drop-icon"><FileUp /></span><strong>{pdfState === "reading" ? "Analizando el PDF…" : pdfState === "ready" ? "PDF leído correctamente" : pdfState === "error" ? "No se pudo leer ese archivo" : "Arrastra aquí el PDF de designaciones"}</strong><small>{pdfState === "ready" ? "Comprueba el texto detectado antes de crear el borrador" : "o pulsa para seleccionarlo · máximo 20 MB"}</small><span className="fake-button">Seleccionar PDF</span></button>{pdfState === "ready" && <div className="panel pdf-result"><div className="panel-heading"><div><p>TEXTO DETECTADO</p><h3>Resultado del análisis</h3></div><Check /></div><pre>{pdfText.slice(0, 3000) || "El PDF no contiene texto seleccionable."}</pre><div className="pdf-actions"><Button variant="outline" onClick={() => { setPdfState("idle"); setPdfText(""); }}>Descartar</Button><Button variant="outline" onClick={() => createDraft("escolar")}>Crear escolar</Button><Button className="primary-btn" onClick={() => createDraft("regional")}>Crear regional</Button></div></div>}<div className="info-strip"><ShieldCheck /><div><strong>Tú tienes siempre la última palabra</strong><span>Ningún partido se guarda ni se añade al calendario sin que antes lo revises.</span></div></div></section>}
+      {view === "importar" && <section className="content narrow"><div className="section-intro"><p>IMPORTAR DESIGNACIONES</p><h2>Sube el PDF de la federación</h2><span>RefFlow detectará cada partido y los colegiados de su ficha detallada.</span></div><input ref={fileRef} hidden type="file" accept="application/pdf" onChange={(e) => void importPdf(e.target.files?.[0])} /><button type="button" className={`drop-zone ${pdfState}`} onClick={() => fileRef.current?.click()} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); void importPdf(e.dataTransfer.files[0]); }}><span className="drop-icon"><FileUp /></span><strong>{pdfState === "reading" ? "Analizando partidos y colegiados…" : pdfState === "ready" ? "Designaciones detectadas" : pdfState === "error" ? "No se reconoce este PDF" : "Arrastra aquí el PDF de designaciones"}</strong><small>{pdfState === "ready" ? `${pdfFileName} · revisa el resultado antes de importar` : pdfState === "error" ? "Comprueba que sea el PDF original de designaciones de la federación" : "o pulsa para seleccionarlo · máximo 20 MB"}</small><span className="fake-button">{pdfState === "ready" ? "Elegir otro PDF" : "Seleccionar PDF"}</span></button>{pdfState === "ready" && pdfImport && <div className="panel pdf-result"><div className="panel-heading"><div><p>REVISIÓN PREVIA</p><h3>{pdfImport.matches.length} {pdfImport.matches.length === 1 ? "designación detectada" : "designaciones detectadas"}</h3></div><span className="pdf-ready-icon"><Check /></span></div><div className="pdf-summary-grid"><div><strong>{pdfImport.matches.length}</strong><span>Partidos</span></div><div><strong>{pdfOfficials.length}</strong><span>Compañeros</span></div><div><strong>{pdfNewOfficials.length}</strong><span>Nuevos en Árbitros</span></div></div><div className="pdf-match-list">{pdfImport.matches.map((match) => { const savedRate = findSavedRate(data.rates, match.category, match.role); return <article className="pdf-match-card" key={`${match.matchNumber}-${match.date}-${match.time}`}><div className="pdf-match-date"><strong>{new Date(`${match.date}T12:00:00`).getDate()}</strong><span>{new Intl.DateTimeFormat("es-ES", { month: "short" }).format(new Date(`${match.date}T12:00:00`)).toUpperCase()}</span></div><div className="pdf-match-main"><div className="pdf-match-top"><span>PARTIDO {match.matchNumber}</span><small>{match.time}</small></div><h4>{match.home} <em>vs</em> {match.away}</h4><p>{match.category} · {match.role}</p><small>{match.officials.length} colegiados en la ficha</small></div><span className={`pdf-rate ${savedRate ? "found" : "pending"}`}>{savedRate ? `${money(savedRate.amount)} · tarifa encontrada` : "Tarifa pendiente"}</span></article>; })}</div><div className="pdf-contact-note"><Users /><div><strong>Agenda automática</strong><span>Al importar, se crearán los compañeros que todavía no existan con su nombre y teléfono. Los contactos ya guardados no se duplicarán.</span></div></div><div className="pdf-actions"><Button variant="outline" onClick={discardPdf}>Descartar</Button><Button variant="outline" onClick={() => addPdfDesignations("escolar")}>Añadir como escolares</Button><Button className="primary-btn" onClick={() => addPdfDesignations("regional")}>Añadir como regionales</Button></div></div>}<div className="info-strip"><ShieldCheck /><div><strong>Tu PDF permanece en este dispositivo</strong><span>Se analiza localmente y no se guarda ni se sube. Solo se sincronizan los partidos y contactos que confirmes.</span></div></div></section>}
 
-      {(view === "regionales" || view === "escolares") && <section className="content"><div className="page-heading"><div><p>{view === "escolares" ? "PARTIDOS ESCOLARES" : "PARTIDOS REGIONALES"}</p><h2>Temporada {data.settings.season}</h2></div><MatchDialog competition={activeCompetition} rates={data.rates} onAdd={(m) => setData((d) => ({ ...d, matches: [m, ...d.matches] }))} /></div><div className="panel table-wrap"><table><thead><tr><th>Fecha</th><th>Partido</th><th>Categoría / función</th><th>Lugar</th><th>Neto</th><th>Acciones</th></tr></thead><tbody>{filtered.length === 0 ? <tr><td colSpan={6} className="empty-table">Aún no hay partidos {view === "escolares" ? "escolares" : "regionales"}.</td></tr> : filtered.sort((a,b) => b.date.localeCompare(a.date)).map((m) => <tr key={m.id}><td><strong>{dateLabel(m.date)}</strong><small>{m.time}</small></td><td><strong>{m.home}</strong><small>vs {m.away}</small></td><td><span className="pill">{m.category}</span><small>{m.role}</small></td><td><span>{m.venue}</span><small>{m.partners.join(", ") || "Sin compañeros"}</small></td><td><strong>{money(net(m))}</strong><small>{money(m.gross + m.diets)} bruto</small></td><td><div className="row-actions"><button onClick={() => googleCalendar(m)} aria-label="Añadir a Google Calendar" title="Añadir a Google Calendar"><CalendarDays /></button><EditMatchDialog match={m} rates={data.rates} onSave={(updated) => updateMatch(m.id, updated)} /><button onClick={() => updateMatch(m.id, { video: !m.video })} className={m.video ? "selected" : ""} aria-label="Marcar vídeo disponible" title="Marcar vídeo disponible"><Check /></button><button onClick={() => setData((d) => ({ ...d, matches: d.matches.filter((x) => x.id !== m.id) }))} aria-label="Eliminar partido" title="Eliminar partido"><X /></button></div></td></tr>)}</tbody></table></div></section>}
+      {(view === "regionales" || view === "escolares") && <section className="content"><div className="page-heading"><div><p>{view === "escolares" ? "PARTIDOS ESCOLARES" : "PARTIDOS REGIONALES"}</p><h2>Temporada {data.settings.season}</h2></div><MatchDialog competition={activeCompetition} rates={data.rates} onAdd={(m) => setData((d) => ({ ...d, matches: [m, ...d.matches] }))} /></div><div className="panel table-wrap"><table><thead><tr><th>Fecha</th><th>Partido</th><th>Categoría / función</th><th>Lugar</th><th>Neto</th><th>Acciones</th></tr></thead><tbody>{filtered.length === 0 ? <tr><td colSpan={6} className="empty-table">Aún no hay partidos {view === "escolares" ? "escolares" : "regionales"}.</td></tr> : filtered.sort((a,b) => b.date.localeCompare(a.date)).map((m) => <tr key={m.id}><td><strong>{dateLabel(m.date)}</strong><small>{m.time}</small></td><td><strong>{m.home}</strong><small>vs {m.away}{m.matchNumber ? ` · Nº ${m.matchNumber}` : ""}</small></td><td><span className="pill">{m.category}</span><small>{m.role}</small></td><td><span>{m.venue}</span><small>{m.partners.join(", ") || "Sin compañeros"}</small></td><td><strong>{money(net(m))}</strong><small>{money(m.gross + m.diets)} bruto</small></td><td><div className="row-actions"><button onClick={() => googleCalendar(m)} aria-label="Añadir a Google Calendar" title="Añadir a Google Calendar"><CalendarDays /></button><EditMatchDialog match={m} rates={data.rates} onSave={(updated) => updateMatch(m.id, updated)} /><button onClick={() => updateMatch(m.id, { video: !m.video })} className={m.video ? "selected" : ""} aria-label="Marcar vídeo disponible" title="Marcar vídeo disponible"><Check /></button><button onClick={() => setData((d) => ({ ...d, matches: d.matches.filter((x) => x.id !== m.id) }))} aria-label="Eliminar partido" title="Eliminar partido"><X /></button></div></td></tr>)}</tbody></table></div></section>}
 
       {view === "grabados" && <section className="content video-analysis-page"><div className="page-heading"><div><p>ANÁLISIS DE VÍDEO</p><h2>Partidos grabados</h2></div><VideoDialog onAdd={(game) => { setData((d) => ({ ...d, recordedGames: [...(d.recordedGames || []), game] })); setSelectedGameId(game.id); }} /></div>
         {recordedGames.length === 0 ? <div className="panel video-empty"><span><Video /></span><h3>Añade tu primer partido</h3><p>Pega un enlace de YouTube y podrás guardar acciones en el minuto y segundo exactos.</p><VideoDialog onAdd={(game) => { setData((d) => ({ ...d, recordedGames: [game] })); setSelectedGameId(game.id); }} /></div> : <div className="video-workspace">
@@ -450,7 +545,7 @@ export default function RefFlow() {
         { key: "regionales", label: "Regionales", matches: regionalMatches, total: regionalTotal },
       ].map((group) => <div className="panel finance-list" key={group.key}><div className="panel-heading"><div><p>GANANCIAS</p><h3>{group.label}</h3></div><div className="finance-heading-total"><strong>{money(group.total)}</strong><button onClick={() => setView(group.key as View)}>Ver partidos <ChevronRight /></button></div></div>{group.matches.length === 0 ? <div className="finance-empty">Aún no hay ingresos de partidos {group.label.toLowerCase()}.</div> : group.matches.map((m) => <div className="finance-row" key={m.id}><div><strong>{m.home} – {m.away}</strong><small>{dateLabel(m.date)} · {m.category}</small></div><span>{money(m.gross)} tarifa + {money(m.diets)} dietas</span><strong>{money(net(m))}</strong></div>)}</div>)}</div></section>}
 
-      {view === "arbitros" && <section className="content"><div className="page-heading"><div><p>AGENDA</p><h2>Compañeros</h2></div><Button className="primary-btn" onClick={() => { const name = prompt("Nombre del árbitro"); if (name) setData((d) => ({ ...d, contacts: [...d.contacts, { id: makeId(), name, phone: "", role: "Árbitro" }] })); }}><Plus /> Añadir árbitro</Button></div><div className="contact-grid">{data.contacts.map((c) => <article className="contact-card" key={c.id}><span className="avatar">{c.name.split(" ").map((x) => x[0]).slice(0,2).join("")}</span><div><h3>{c.name}</h3><p>{c.role}</p><span>{c.phone || "Teléfono pendiente"}</span></div><div className="contact-actions"><button onClick={() => { const phone = prompt("Número de teléfono", c.phone); if (phone !== null) setData((d) => ({ ...d, contacts: d.contacts.map((x) => x.id === c.id ? { ...x, phone } : x) })); }}><Pencil /></button><button disabled={!c.phone} onClick={() => window.open(`https://wa.me/34${c.phone.replace(/\D/g, "")}`, "_blank")}><MessageCircle /> WhatsApp</button></div></article>)}</div></section>}
+      {view === "arbitros" && <section className="content"><div className="page-heading"><div><p>AGENDA</p><h2>Compañeros</h2></div><Button className="primary-btn" onClick={() => { const name = prompt("Nombre del árbitro"); if (name) setData((d) => ({ ...d, contacts: [...d.contacts, { id: makeId(), name, phone: "", role: "Árbitro" }] })); }}><Plus /> Añadir árbitro</Button></div>{data.contacts.length === 0 ? <div className="panel contacts-empty"><Users /><h3>Aún no hay compañeros</h3><p>Los árbitros y oficiales aparecerán aquí automáticamente cuando importes una designación.</p></div> : <div className="contact-grid">{data.contacts.map((c) => <article className="contact-card" key={c.id}><span className="avatar">{c.name.split(" ").map((x) => x[0]).slice(0,2).join("")}</span><div><h3>{c.name}</h3><p>{c.role}{c.city ? ` · ${c.city}` : ""}</p><span>{c.phone || "Teléfono pendiente"}</span></div><div className="contact-actions"><button onClick={() => { const phone = prompt("Número de teléfono", c.phone); if (phone !== null) setData((d) => ({ ...d, contacts: d.contacts.map((x) => x.id === c.id ? { ...x, phone } : x) })); }} aria-label={`Editar teléfono de ${c.name}`}><Pencil /></button><button disabled={!c.phone} onClick={() => window.open(`https://wa.me/34${c.phone.replace(/\D/g, "")}`, "_blank", "noopener,noreferrer")}><MessageCircle /> WhatsApp</button></div></article>)}</div>}</section>}
 
       {view === "tarifas" && <section className="content"><div className="page-heading"><div><p>TARIFAS</p><h2>Temporada {data.settings.season}</h2></div><Button className="primary-btn" onClick={() => setData((d) => ({ ...d, rates: [...d.rates, { id: makeId(), category: "Nueva categoría", role: "Árbitro", amount: 0, retention: RETENTION_RATE }] }))}><Plus /> Nueva tarifa</Button></div><div className="panel table-wrap"><table><thead><tr><th>Competición</th><th>Función</th><th>Tarifa</th><th>Retención</th><th>Neto</th><th></th></tr></thead><tbody>{data.rates.map((r) => <tr key={r.id}><td><Input value={r.category} onChange={(e) => setData((d) => ({ ...d, rates: d.rates.map((x) => x.id === r.id ? { ...x, category: e.target.value } : x) }))} /></td><td><Input value={r.role} onChange={(e) => setData((d) => ({ ...d, rates: d.rates.map((x) => x.id === r.id ? { ...x, role: e.target.value } : x) }))} /></td><td><Input type="number" step="0.01" value={r.amount} onChange={(e) => setData((d) => ({ ...d, rates: d.rates.map((x) => x.id === r.id ? { ...x, amount: Number(e.target.value) } : x) }))} /></td><td><Input type="number" value={RETENTION_RATE} readOnly aria-label="Retención fija del 2 por ciento" /></td><td><strong>{money(r.amount * (1 - RETENTION_RATE / 100))}</strong></td><td><button className="icon-delete" onClick={() => setData((d) => ({ ...d, rates: d.rates.filter((x) => x.id !== r.id) }))}><X /></button></td></tr>)}</tbody></table></div></section>}
 
