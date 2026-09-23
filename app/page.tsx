@@ -462,7 +462,6 @@ export default function RefFlow() {
     wb.creator = "RefFlow";
     // Preserve visible totals even in spreadsheet viewers that do not recalculate formulas on open.
     wb.calcProperties.fullCalcOnLoad = true;
-    wb.calcProperties.forceFullCalc = true;
     const months = ["SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE", "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO"];
     const nums = [9, 10, 11, 12, 1, 2, 3, 4, 5, 6];
     months.forEach((month, index) => {
