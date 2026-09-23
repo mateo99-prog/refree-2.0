@@ -460,6 +460,8 @@ export default function RefFlow() {
     const ExcelJS = await import("exceljs");
     const wb = new ExcelJS.Workbook();
     wb.creator = "RefFlow";
+    wb.calcProperties.fullCalcOnLoad = true;
+    wb.calcProperties.forceFullCalc = true;
     const months = ["SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE", "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO"];
     const nums = [9, 10, 11, 12, 1, 2, 3, 4, 5, 6];
     months.forEach((month, index) => {
@@ -499,8 +501,10 @@ export default function RefFlow() {
           ws.mergeCells(emptyRow.number, 1, emptyRow.number, 10);
         }
         const lastMatchRow = ws.rowCount;
-        const grossTotal = sectionMatches.length ? { formula: `SUM(I${firstMatchRow}:I${lastMatchRow})` } : 0;
-        const netTotal = sectionMatches.length ? { formula: `SUM(J${firstMatchRow}:J${lastMatchRow})` } : 0;
+        const grossTotalValue = sectionMatches.reduce((sum, match) => sum + match.gross + match.diets, 0);
+        const netTotalValue = sectionMatches.reduce((sum, match) => sum + net(match), 0);
+        const grossTotal = sectionMatches.length ? { formula: `SUM(I${firstMatchRow}:I${lastMatchRow})`, result: grossTotalValue } : 0;
+        const netTotal = sectionMatches.length ? { formula: `SUM(J${firstMatchRow}:J${lastMatchRow})`, result: netTotalValue } : 0;
         const totalRow = ws.addRow(["", "", "", "", "", `TOTAL ${label}`, "", "", grossTotal, netTotal]);
         totalRow.font = { bold: true };
         totalRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE7F0FF" } };
@@ -508,6 +512,12 @@ export default function RefFlow() {
       };
       addSection("REGIONALES", "regional", "FF0B5CFF");
       addSection("ESCOLARES", "escolar", "FFF47B20");
+      const monthlyGross = monthMatches.reduce((sum, match) => sum + match.gross + match.diets, 0);
+      const monthlyNet = monthMatches.reduce((sum, match) => sum + net(match), 0);
+      const monthlyTotalRow = ws.addRow(["", "", "", "", "", "TOTAL DEL MES", "", "", monthlyGross, monthlyNet]);
+      monthlyTotalRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
+      monthlyTotalRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF07152D" } };
+      monthlyTotalRow.height = 28;
       [7, 8, 9, 10].forEach((col) => { ws.getColumn(col).numFmt = '#,##0.00 [$€-es-ES]'; });
       ws.columns = [{ width: 13 }, { width: 9 }, { width: 23 }, { width: 23 }, { width: 22 }, { width: 20 }, { width: 12 }, { width: 12 }, { width: 15 }, { width: 15 }];
     });
