@@ -460,6 +460,7 @@ export default function RefFlow() {
     const ExcelJS = await import("exceljs");
     const wb = new ExcelJS.Workbook();
     wb.creator = "RefFlow";
+    // Preserve visible totals even in spreadsheet viewers that do not recalculate formulas on open.
     wb.calcProperties.fullCalcOnLoad = true;
     wb.calcProperties.forceFullCalc = true;
     const months = ["SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE", "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO"];
