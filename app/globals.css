@@ -35,3 +35,5 @@
 @media(max-width:560px){.settings-profile{align-items:flex-start}.settings-avatar{width:64px;height:64px;border-radius:18px}.settings-photo-actions{align-items:flex-start;flex-direction:column}.username-control{flex-direction:column}.username-control button{width:100%}}
 
 @media(max-width:560px){.pdf-summary-grid{grid-template-columns:1fr;padding:14px}.pdf-match-list{padding:14px}.pdf-match-card{grid-template-columns:44px minmax(0,1fr);align-items:start}.pdf-match-date{width:42px;height:48px}.pdf-rate{grid-column:2;justify-self:start}.pdf-contact-note{margin:0 14px 14px;align-items:flex-start}.pdf-actions{padding:0 14px 14px}}
+
+.row-actions button:disabled{cursor:default;opacity:.38;background:#fff;color:#8a96a7;border-color:#dfe6ef}
