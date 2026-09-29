@@ -247,6 +247,7 @@ type YouTubeWindow = Window & { YT?: { Player: new (element: HTMLElement, option
 
 export default function RefFlow() {
   const [view, setView] = useState<View>("inicio"); const [data, setData] = useState<AppData>(sampleData); const [loaded, setLoaded] = useState(false);
+  const [earningsPeriod, setEarningsPeriod] = useState("general");
   const [viewer, setViewer] = useState<Viewer | null>(null); const [authState, setAuthState] = useState<"loading" | "authenticated" | "anonymous">("loading");
   const [legacyMigrationNeeded, setLegacyMigrationNeeded] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "signup">("login"); const [authEmail, setAuthEmail] = useState(""); const [authPassword, setAuthPassword] = useState(""); const [authName, setAuthName] = useState(""); const [authBusy, setAuthBusy] = useState(false); const [authMessage, setAuthMessage] = useState("");
@@ -374,6 +375,24 @@ export default function RefFlow() {
   const schoolMatches = data.matches.filter((m) => m.competition === "escolar");
   const regionalTotal = regionalMatches.reduce((sum, match) => sum + net(match), 0);
   const schoolTotal = schoolMatches.reduce((sum, match) => sum + net(match), 0);
+  const seasonStartYear = Number(data.settings.season.match(/\d{4}/)?.[0]) || (today.getMonth() >= 8 ? today.getFullYear() : today.getFullYear() - 1);
+  const earningsMonths = Array.from({ length: 12 }, (_, index) => {
+    const date = new Date(seasonStartYear, 8 + index, 1, 12);
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+    const matches = data.matches.filter((match) => match.date.startsWith(key));
+    return {
+      key,
+      label: capitalize(new Intl.DateTimeFormat("es-ES", { month: "long", year: "numeric" }).format(date)),
+      shortLabel: capitalize(new Intl.DateTimeFormat("es-ES", { month: "short" }).format(date).replace(".", "")),
+      matches,
+      gross: matches.reduce((sum, match) => sum + match.gross + match.diets, 0),
+      total: matches.reduce((sum, match) => sum + net(match), 0),
+    };
+  });
+  const selectedEarningsMonth = earningsMonths.find((month) => month.key === earningsPeriod);
+  const selectedMonthMatches = selectedEarningsMonth?.matches || [];
+  const selectedMonthRegionalMatches = selectedMonthMatches.filter((match) => match.competition === "regional");
+  const selectedMonthSchoolMatches = selectedMonthMatches.filter((match) => match.competition === "escolar");
   const activeCompetition: MatchCompetition = view === "escolares" ? "escolar" : "regional";
   const normalizedSearch = normalizeRateField(search);
   const filtered = data.matches.filter((m) => m.competition === activeCompetition && normalizeRateField(`${m.home} ${m.away} ${m.category} ${m.venue}`).includes(normalizedSearch));
@@ -642,10 +661,28 @@ export default function RefFlow() {
         </div>}
       </section>}
 
-      {view === "ganancias" && <section className="content"><div className="page-heading"><div><p>GANANCIAS</p><h2>Resumen económico</h2></div><Button className="primary-btn" onClick={exportExcel}><FileSpreadsheet /> Exportar Excel</Button></div><div className="kpi-grid"><article className="kpi primary"><div><span>ESTA SEMANA</span><strong>{money(weekTotal)}</strong><small>{matchCountLabel(weekMatches.length)} · Neto estimado</small></div><WalletCards /></article><article className="kpi"><div><span>ESTE MES</span><strong>{money(monthTotal)}</strong><small>{monthLabel}</small></div><BarChart3 /></article><article className="kpi"><div><span>TEMPORADA</span><strong>{money(total)}</strong><small>{data.matches.length} designaciones</small></div><Trophy /></article></div><div className="panel finance-list"><div className="panel-heading"><div><p>DESGLOSE GENERAL</p><h3>Ingresos por partido</h3></div></div>{data.matches.map((m) => <div className="finance-row" key={m.id}><div><strong>{m.home} – {m.away}</strong><small>{dateLabel(m.date)} · {m.category}</small></div><span>{money(m.gross)} tarifa + {money(m.diets)} dietas</span><strong>{money(net(m))}</strong></div>)}</div><div className="earnings-split">{[
-        { key: "escolares", label: "Escolares", matches: schoolMatches, total: schoolTotal },
-        { key: "regionales", label: "Regionales", matches: regionalMatches, total: regionalTotal },
-      ].map((group) => <div className="panel finance-list" key={group.key}><div className="panel-heading"><div><p>GANANCIAS</p><h3>{group.label}</h3></div><div className="finance-heading-total"><strong>{money(group.total)}</strong><button onClick={() => setView(group.key as View)}>Ver partidos <ChevronRight /></button></div></div>{group.matches.length === 0 ? <div className="finance-empty">Aún no hay ingresos de partidos {group.label.toLowerCase()}.</div> : group.matches.map((m) => <div className="finance-row" key={m.id}><div><strong>{m.home} – {m.away}</strong><small>{dateLabel(m.date)} · {m.category}</small></div><span>{money(m.gross)} tarifa + {money(m.diets)} dietas</span><strong>{money(net(m))}</strong></div>)}</div>)}</div></section>}
+      {view === "ganancias" && <section className="content"><div className="page-heading"><div><p>GANANCIAS</p><h2>Resumen económico</h2></div><Button className="primary-btn" onClick={exportExcel}><FileSpreadsheet /> Exportar Excel</Button></div>
+        <nav className="earnings-period-tabs" role="tablist" aria-label="Periodo de ganancias">
+          <button type="button" role="tab" aria-selected={earningsPeriod === "general"} className={earningsPeriod === "general" ? "active" : ""} onClick={() => setEarningsPeriod("general")}><strong>General</strong><small>{matchCountLabel(data.matches.length)}</small></button>
+          {earningsMonths.map((month) => <button type="button" role="tab" aria-selected={earningsPeriod === month.key} className={earningsPeriod === month.key ? "active" : ""} key={month.key} onClick={() => setEarningsPeriod(month.key)}><strong>{month.shortLabel}</strong><small>{month.matches.length || "Sin partidos"}</small></button>)}
+        </nav>
+        {earningsPeriod === "general" ? <>
+          <div className="kpi-grid"><article className="kpi primary"><div><span>ESTA SEMANA</span><strong>{money(weekTotal)}</strong><small>{matchCountLabel(weekMatches.length)} · Neto estimado</small></div><WalletCards /></article><article className="kpi"><div><span>ESTE MES</span><strong>{money(monthTotal)}</strong><small>{monthLabel}</small></div><BarChart3 /></article><article className="kpi"><div><span>TEMPORADA</span><strong>{money(total)}</strong><small>{data.matches.length} designaciones</small></div><Trophy /></article></div>
+          <div className="panel finance-list"><div className="panel-heading"><div><p>DESGLOSE GENERAL</p><h3>Ingresos por partido</h3></div></div>{data.matches.length === 0 ? <div className="finance-empty">Aún no hay ingresos registrados esta temporada.</div> : data.matches.map((m) => <div className="finance-row" key={m.id}><div><strong>{m.home} – {m.away}</strong><small>{dateLabel(m.date)} · {m.category}</small></div><span>{money(m.gross)} tarifa + {money(m.diets)} dietas</span><strong>{money(net(m))}</strong></div>)}</div>
+          <div className="earnings-split">{[
+            { key: "escolares", label: "Escolares", matches: schoolMatches, total: schoolTotal },
+            { key: "regionales", label: "Regionales", matches: regionalMatches, total: regionalTotal },
+          ].map((group) => <div className="panel finance-list" key={group.key}><div className="panel-heading"><div><p>GANANCIAS</p><h3>{group.label}</h3></div><div className="finance-heading-total"><strong>{money(group.total)}</strong><button onClick={() => setView(group.key as View)}>Ver partidos <ChevronRight /></button></div></div>{group.matches.length === 0 ? <div className="finance-empty">Aún no hay ingresos de partidos {group.label.toLowerCase()}.</div> : group.matches.map((m) => <div className="finance-row" key={m.id}><div><strong>{m.home} – {m.away}</strong><small>{dateLabel(m.date)} · {m.category}</small></div><span>{money(m.gross)} tarifa + {money(m.diets)} dietas</span><strong>{money(net(m))}</strong></div>)}</div>)}</div>
+        </> : selectedEarningsMonth && <>
+          <div className="month-heading"><div><p>RESUMEN MENSUAL</p><h3>{selectedEarningsMonth.label}</h3></div><span>{matchCountLabel(selectedMonthMatches.length)}</span></div>
+          <div className="kpi-grid monthly-kpis"><article className="kpi primary"><div><span>NETO ESTIMADO</span><strong>{money(selectedEarningsMonth.total)}</strong><small>{matchCountLabel(selectedMonthMatches.length)}</small></div><WalletCards /></article><article className="kpi"><div><span>BRUTO + DIETAS</span><strong>{money(selectedEarningsMonth.gross)}</strong><small>Antes de retención</small></div><CircleEuro /></article><article className="kpi"><div><span>MEDIA POR PARTIDO</span><strong>{money(selectedMonthMatches.length ? selectedEarningsMonth.total / selectedMonthMatches.length : 0)}</strong><small>Neto estimado</small></div><BarChart3 /></article></div>
+          <div className="panel finance-list"><div className="panel-heading"><div><p>DESGLOSE DEL MES</p><h3>{selectedEarningsMonth.label}</h3></div><div className="finance-heading-total"><strong>{money(selectedEarningsMonth.total)}</strong><small>Neto total</small></div></div>{selectedMonthMatches.length === 0 ? <div className="finance-empty">No hay partidos registrados en {selectedEarningsMonth.label.toLowerCase()}.</div> : selectedMonthMatches.map((m) => <div className="finance-row" key={m.id}><div><strong>{m.home} – {m.away}</strong><small>{dateLabel(m.date)} · {m.category} · {m.role}</small></div><span>{money(m.gross)} tarifa + {money(m.diets)} dietas</span><strong>{money(net(m))}</strong></div>)}</div>
+          <div className="earnings-split">{[
+            { key: "escolares", label: "Escolares", matches: selectedMonthSchoolMatches },
+            { key: "regionales", label: "Regionales", matches: selectedMonthRegionalMatches },
+          ].map((group) => { const groupTotal = group.matches.reduce((sum, match) => sum + net(match), 0); return <div className="panel finance-list" key={group.key}><div className="panel-heading"><div><p>{selectedEarningsMonth.shortLabel.toUpperCase()}</p><h3>{group.label}</h3></div><div className="finance-heading-total"><strong>{money(groupTotal)}</strong><button onClick={() => setView(group.key as View)}>Ver partidos <ChevronRight /></button></div></div>{group.matches.length === 0 ? <div className="finance-empty">Sin partidos {group.label.toLowerCase()} este mes.</div> : group.matches.map((m) => <div className="finance-row" key={m.id}><div><strong>{m.home} – {m.away}</strong><small>{dateLabel(m.date)} · {m.category}</small></div><span>{money(m.gross)} tarifa + {money(m.diets)} dietas</span><strong>{money(net(m))}</strong></div>)}</div>; })}</div>
+        </>}
+      </section>}
 
       {view === "arbitros" && <section className="content"><div className="page-heading"><div><p>AGENDA</p><h2>Compañeros</h2></div><Button className="primary-btn" onClick={() => { const name = prompt("Nombre del árbitro"); if (name) setData((d) => ({ ...d, contacts: [...d.contacts, { id: makeId(), name, phone: "", role: "Árbitro" }] })); }}><Plus /> Añadir árbitro</Button></div>{data.contacts.length === 0 ? <div className="panel contacts-empty"><Users /><h3>Aún no hay compañeros</h3><p>Los árbitros y oficiales aparecerán aquí automáticamente cuando importes una designación.</p></div> : <div className="contact-grid">{data.contacts.map((c) => <article className="contact-card" key={c.id}><span className="avatar">{c.name.split(" ").map((x) => x[0]).slice(0,2).join("")}</span><div><h3>{c.name}</h3><p>{c.role}{c.city ? ` · ${c.city}` : ""}</p><span>{c.phone || "Teléfono pendiente"}</span></div><div className="contact-actions"><button onClick={() => { const phone = prompt("Número de teléfono", c.phone); if (phone !== null) setData((d) => ({ ...d, contacts: d.contacts.map((x) => x.id === c.id ? { ...x, phone } : x) })); }} aria-label={`Editar teléfono de ${c.name}`}><Pencil /></button><button disabled={!c.phone} onClick={() => window.open(`https://wa.me/34${c.phone.replace(/\D/g, "")}`, "_blank", "noopener,noreferrer")}><MessageCircle /> WhatsApp</button></div></article>)}</div>}</section>}
 
