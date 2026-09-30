@@ -21,11 +21,16 @@ type Rate = { id: string; category: string; role: string; amount: number; retent
 type Contact = { id: string; name: string; phone: string; role: string; licenseId?: string; city?: string };
 type VideoAnnotation = { id: string; seconds: number; category: string; label: string; note: string; createdAt: string };
 type RecordedGame = { id: string; title: string; youtubeUrl: string; youtubeId: string; matchId?: string; createdAt: string; annotations: VideoAnnotation[] };
-type AppData = { dataVersion: number; matches: Match[]; rates: Rate[]; contacts: Contact[]; recordedGames: RecordedGame[]; settings: { name: string; season: string; earningsGoal: number; username: string; profileImage: string } };
+type SeasonStatus = "open" | "closed";
+type SeasonArchive = { id: string; name: string; status: SeasonStatus; matches: Match[]; rates: Rate[]; contacts: Contact[]; recordedGames: RecordedGame[]; earningsGoal: number; closedAt?: string };
+type AppData = { dataVersion: number; activeSeasonId: string; seasonStatus: SeasonStatus; seasonArchives: SeasonArchive[]; matches: Match[]; rates: Rate[]; contacts: Contact[]; recordedGames: RecordedGame[]; settings: { name: string; season: string; earningsGoal: number; username: string; profileImage: string } };
 type Viewer = { userId: string; displayName: string; email: string; fullName: string | null };
 
 const sampleData: AppData = {
-  dataVersion: 4,
+  dataVersion: 5,
+  activeSeasonId: "season-2026-27",
+  seasonStatus: "open",
+  seasonArchives: [],
   matches: [
     { id: "p1", competition: "regional", date: "2026-09-19", time: "18:30", home: "CB Toledo", away: "Baloncesto Talavera", category: "Junior Autonómico", role: "Árbitro auxiliar", venue: "Pabellón Javier Lozano Cid", gross: 32, diets: 8, retention: 2, partners: ["Álvaro Martín"], video: true, status: "confirmado" },
     { id: "p2", competition: "regional", date: "2026-09-20", time: "12:00", home: "CEI Toledo", away: "CB La Sagra", category: "Infantil Regional", role: "Árbitro", venue: "Pabellón IES Universidad Laboral", gross: 24, diets: 0, retention: 2, partners: ["Lucía Gómez"], video: false, status: "confirmado" },
@@ -40,21 +45,47 @@ const sampleData: AppData = {
   recordedGames: [],
   settings: { name: "Árbitro", season: "2026/27", earningsGoal: 250, username: "", profileImage: "" },
 };
-const emptyData = (name: string): AppData => ({ dataVersion: 4, matches: [], rates: [], contacts: [], recordedGames: [], settings: { name, season: "2026/27", earningsGoal: 250, username: "", profileImage: "" } });
+const emptyData = (name: string): AppData => ({ dataVersion: 5, activeSeasonId: "season-2026-27", seasonStatus: "open", seasonArchives: [], matches: [], rates: [], contacts: [], recordedGames: [], settings: { name, season: "2026/27", earningsGoal: 250, username: "", profileImage: "" } });
 
 const nav: { id: View; label: string; icon: LucideIcon }[] = [
   { id: "inicio", label: "Inicio", icon: Home }, { id: "importar", label: "Importar", icon: FileUp }, { id: "regionales", label: "Regionales", icon: CalendarDays }, { id: "escolares", label: "Partidos escolares", icon: Trophy }, { id: "grabados", label: "Partidos grabados", icon: Video },
   { id: "ganancias", label: "Ganancias", icon: BarChart3 }, { id: "arbitros", label: "Árbitros", icon: Users }, { id: "tarifas", label: "Tarifas", icon: CircleEuro }, { id: "ajustes", label: "Ajustes", icon: Settings },
 ];
 const RETENTION_RATE = 2;
-const CURRENT_DATA_VERSION = 4;
+const CURRENT_DATA_VERSION = 5;
 const SAMPLE_CONTACT_IDS = new Set(["a1", "a2"]);
+const seasonStartYearFromName = (value: string) => {
+  const raw = value.match(/(\d{2,4})\s*\/\s*(\d{2,4})/);
+  if (!raw) return new Date().getMonth() >= 8 ? new Date().getFullYear() : new Date().getFullYear() - 1;
+  const parsed = Number(raw[1]);
+  return parsed < 100 ? 2000 + parsed : parsed;
+};
+const shortSeasonName = (value: string) => {
+  const start = seasonStartYearFromName(value);
+  return `${String(start).slice(-2)}/${String(start + 1).slice(-2)}`;
+};
+const fullSeasonName = (start: number) => `${start}/${String(start + 1).slice(-2)}`;
+const seasonIdFor = (name: string) => { const start = seasonStartYearFromName(name); return `season-${start}-${String(start + 1).slice(-2)}`; };
+const normalizeSeasonArchive = (season: SeasonArchive): SeasonArchive => ({
+  ...season,
+  id: season.id || seasonIdFor(season.name),
+  name: season.name || "2026/27",
+  status: season.status === "open" ? "open" : "closed",
+  matches: (season.matches || []).map((match) => ({ ...match, competition: match.competition === "escolar" ? "escolar" : "regional", retention: RETENTION_RATE })),
+  rates: (season.rates || []).map((rate) => ({ ...rate, retention: RETENTION_RATE })),
+  contacts: season.contacts || [],
+  recordedGames: season.recordedGames || [],
+  earningsGoal: Number.isFinite(Number(season.earningsGoal)) && Number(season.earningsGoal) >= 0 ? Number(season.earningsGoal) : 250,
+});
 const normalizeData = (state: AppData): AppData => {
   const removeSampleContacts = (state.dataVersion || 0) < 1;
   const savedGoal = Number(state.settings?.earningsGoal);
   return {
     ...state,
     dataVersion: CURRENT_DATA_VERSION,
+    activeSeasonId: (state.dataVersion || 0) >= 5 && state.activeSeasonId ? state.activeSeasonId : seasonIdFor(state.settings?.season || "2026/27"),
+    seasonStatus: (state.dataVersion || 0) >= 5 && state.seasonStatus === "closed" ? "closed" : "open",
+    seasonArchives: ((state.dataVersion || 0) >= 5 ? state.seasonArchives || [] : []).map(normalizeSeasonArchive),
     matches: (state.matches || []).map((match) => ({ ...match, competition: match.competition === "escolar" ? "escolar" : "regional", retention: RETENTION_RATE })),
     rates: (state.rates || []).map((rate) => ({ ...rate, retention: RETENTION_RATE })),
     contacts: removeSampleContacts ? (state.contacts || []).filter((contact) => !SAMPLE_CONTACT_IDS.has(contact.id)) : (state.contacts || []),
@@ -144,6 +175,17 @@ const parseYouTubeId = (value: string) => {
 const timeLabel = (seconds: number) => `${Math.floor(seconds / 60).toString().padStart(2, "0")}:${Math.floor(seconds % 60).toString().padStart(2, "0")}`;
 const videoAt = (game: RecordedGame, seconds: number) => `https://www.youtube.com/watch?v=${encodeURIComponent(game.youtubeId)}&t=${Math.max(0, Math.floor(seconds) - 3)}s`;
 const makeId = () => typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+const seasonSnapshot = (state: AppData, status: SeasonStatus = state.seasonStatus): SeasonArchive => ({
+  id: state.activeSeasonId,
+  name: state.settings.season,
+  status,
+  matches: state.matches,
+  rates: state.rates,
+  contacts: state.contacts,
+  recordedGames: state.recordedGames || [],
+  earningsGoal: state.settings.earningsGoal,
+  ...(status === "closed" ? { closedAt: new Date().toISOString() } : {}),
+});
 const sameContact = (contact: Contact, official: PdfOfficial) => Boolean(
   (contact.licenseId && official.licenseId && contact.licenseId === official.licenseId)
   || normalizeRateField(contact.name) === normalizeRateField(official.name)
@@ -248,6 +290,7 @@ type YouTubeWindow = Window & { YT?: { Player: new (element: HTMLElement, option
 export default function RefFlow() {
   const [view, setView] = useState<View>("inicio"); const [data, setData] = useState<AppData>(sampleData); const [loaded, setLoaded] = useState(false);
   const [earningsPeriod, setEarningsPeriod] = useState("general");
+  const [settingsTab, setSettingsTab] = useState<"profile" | "seasons">("profile"); const [closeSeasonOpen, setCloseSeasonOpen] = useState(false);
   const [viewer, setViewer] = useState<Viewer | null>(null); const [authState, setAuthState] = useState<"loading" | "authenticated" | "anonymous">("loading");
   const [legacyMigrationNeeded, setLegacyMigrationNeeded] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "signup">("login"); const [authEmail, setAuthEmail] = useState(""); const [authPassword, setAuthPassword] = useState(""); const [authName, setAuthName] = useState(""); const [authBusy, setAuthBusy] = useState(false); const [authMessage, setAuthMessage] = useState("");
@@ -375,7 +418,7 @@ export default function RefFlow() {
   const schoolMatches = data.matches.filter((m) => m.competition === "escolar");
   const regionalTotal = regionalMatches.reduce((sum, match) => sum + net(match), 0);
   const schoolTotal = schoolMatches.reduce((sum, match) => sum + net(match), 0);
-  const seasonStartYear = Number(data.settings.season.match(/\d{4}/)?.[0]) || (today.getMonth() >= 8 ? today.getFullYear() : today.getFullYear() - 1);
+  const seasonStartYear = seasonStartYearFromName(data.settings.season);
   const earningsMonths = Array.from({ length: 12 }, (_, index) => {
     const date = new Date(seasonStartYear, 8 + index, 1, 12);
     const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
@@ -400,6 +443,11 @@ export default function RefFlow() {
   const recordedGames = data.recordedGames || []; const selectedGame = recordedGames.find((game) => game.id === selectedGameId) || recordedGames[0];
   const pdfOfficials = pdfImport ? uniqueImportedOfficials(pdfImport) : [];
   const pdfNewOfficials = pdfOfficials.filter((official) => !data.contacts.some((contact) => sameContact(contact, official)));
+  const seasonOptions = [
+    { id: data.activeSeasonId, name: data.settings.season, status: data.seasonStatus, matches: data.matches, recordedGames: data.recordedGames || [], earningsGoal: data.settings.earningsGoal, selected: true },
+    ...(data.seasonArchives || []).map((season) => ({ ...season, selected: false })),
+  ].sort((a, b) => seasonStartYearFromName(b.name) - seasonStartYearFromName(a.name));
+  const nextSeasonName = fullSeasonName(seasonStartYearFromName(data.settings.season) + 1);
 
   useEffect(() => { if (!selectedGame && selectedGameId) queueMicrotask(() => setSelectedGameId("")); if (selectedGame && !selectedGameId) queueMicrotask(() => setSelectedGameId(selectedGame.id)); }, [selectedGame, selectedGameId]);
   useEffect(() => { const onFullscreenChange = () => { if (document.fullscreenElement === analysisStageRef.current) setAnalysisFullscreen(true); else if (!document.fullscreenElement) setAnalysisFullscreen(false); }; document.addEventListener("fullscreenchange", onFullscreenChange); return () => document.removeEventListener("fullscreenchange", onFullscreenChange); }, []);
@@ -569,6 +617,46 @@ export default function RefFlow() {
   };
 
   const currentLabel = nav.find((item) => item.id === view)?.label;
+  const selectSeason = (seasonId: string) => {
+    if (seasonId === data.activeSeasonId) return;
+    const selected = data.seasonArchives.find((season) => season.id === seasonId);
+    if (!selected) return;
+    setData((current) => {
+      const target = current.seasonArchives.find((season) => season.id === seasonId);
+      if (!target) return current;
+      const currentSnapshot = seasonSnapshot(current);
+      return {
+        ...current,
+        activeSeasonId: target.id,
+        seasonStatus: target.status,
+        matches: target.matches,
+        rates: target.rates,
+        contacts: target.contacts,
+        recordedGames: target.recordedGames,
+        settings: { ...current.settings, season: target.name, earningsGoal: target.earningsGoal },
+        seasonArchives: [currentSnapshot, ...current.seasonArchives.filter((season) => season.id !== target.id && season.id !== currentSnapshot.id)],
+      };
+    });
+    setEarningsPeriod("general"); setSelectedGameId(""); setSearch("");
+    setNotice(`Mostrando la temporada ${shortSeasonName(selected.name)}.`);
+  };
+  const closeCurrentSeason = () => {
+    const closedName = shortSeasonName(data.settings.season);
+    const newSeasonName = nextSeasonName;
+    setData((current) => ({
+      ...current,
+      activeSeasonId: seasonIdFor(newSeasonName),
+      seasonStatus: "open",
+      seasonArchives: [seasonSnapshot(current, "closed"), ...current.seasonArchives.filter((season) => season.id !== current.activeSeasonId)],
+      matches: [],
+      rates: current.rates.map((rate) => ({ ...rate })),
+      contacts: current.contacts.map((contact) => ({ ...contact })),
+      recordedGames: [],
+      settings: { ...current.settings, season: newSeasonName },
+    }));
+    setEarningsPeriod("general"); setSelectedGameId(""); setSearch(""); setCloseSeasonOpen(false);
+    setNotice(`Temporada ${closedName} cerrada. Ya estás en la ${shortSeasonName(newSeasonName)}.`);
+  };
   const saveUsername = async () => {
     if (!viewer) return;
     const username = normalizeUsername(usernameDraft);
@@ -642,8 +730,8 @@ export default function RefFlow() {
   if (authState === "anonymous") return <main className="auth-screen"><section className="auth-card"><img className="auth-logo" src="/favicon.svg" alt="RefFlow" /><p className="auth-kicker">REFFLOW</p><h1>Tu arbitraje, organizado</h1><p className="auth-copy">Tus designaciones, ganancias y análisis estarán sincronizados en cualquier versión de RefFlow.</p><div className="auth-tabs"><button type="button" className={authMode === "login" ? "active" : ""} onClick={() => { setAuthMode("login"); setAuthMessage(""); }}>Iniciar sesión</button><button type="button" className={authMode === "signup" ? "active" : ""} onClick={() => { setAuthMode("signup"); setAuthMessage(""); }}>Crear cuenta</button></div><form className="auth-form" onSubmit={submitAuth}>{authMode === "signup" && <label>Nombre completo<Input value={authName} onChange={(event) => setAuthName(event.target.value)} autoComplete="name" required /></label>}<label>{authMode === "login" ? "Correo o nombre de usuario" : "Correo electrónico"}<Input type={authMode === "login" ? "text" : "email"} value={authEmail} onChange={(event) => setAuthEmail(event.target.value)} autoComplete="username" required /></label><label>Contraseña<Input type="password" value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} autoComplete={authMode === "signup" ? "new-password" : "current-password"} minLength={6} required /></label>{authMessage && <p className="auth-message">{authMessage}</p>}<button className="auth-button" type="submit" disabled={authBusy}>{authBusy ? "Comprobando…" : authMode === "signup" ? "Crear mi cuenta" : "Entrar"} <ChevronRight /></button></form><small>{authMode === "login" ? "Puedes entrar con tu nombre de usuario o con tu correo." : "La cuenta se crea con correo; después podrás elegir tu usuario en Ajustes."}</small></section></main>;
   const greetingName = (data.settings.name || viewer?.fullName || viewer?.displayName || "Árbitro").trim().split(/\s+/)[0];
   const initials = data.settings.name.split(" ").filter(Boolean).map((part) => part[0]).slice(0, 2).join("").toUpperCase() || "AP";
-  return <div className="app-shell"><aside className={`sidebar ${menuOpen ? "open" : ""}`}><button className="mobile-close" onClick={() => setMenuOpen(false)} aria-label="Cerrar menú"><X /></button><div className="brand"><img className="ball-logo" src="/favicon.svg" alt="" /><div><strong>RefFlow</strong><small>Temporada {data.settings.season}</small></div></div><nav>{nav.map(({ id, label, icon: Icon }) => <button key={id} className={view === id ? "active" : ""} onClick={() => { setView(id); setMenuOpen(false); }}><Icon /><span>{label}</span>{view === id && <ChevronRight className="chev" />}</button>)}</nav><div className="sync-card"><span className={saveState === "error" ? "sync-dot error" : "sync-dot"} /><div><strong>{saveState === "guardando" ? "Guardando…" : saveState === "error" ? "Sin conexión" : "Todo guardado"}</strong><small>Sincronizado con Supabase</small></div></div><div className="profile"><span className="profile-avatar">{data.settings.profileImage ? <img src={data.settings.profileImage} alt="Foto de perfil" /> : initials}</span><div><strong>{data.settings.name}</strong><small>{data.settings.username ? `@${data.settings.username}` : viewer?.email}</small></div><button type="button" onClick={() => void supabase.auth.signOut()} aria-label="Cerrar sesión">Salir</button></div></aside>{menuOpen && <button className="scrim" onClick={() => setMenuOpen(false)} aria-label="Cerrar menú" />}
-    <main className="main-panel"><header className="topbar"><button className="menu-btn" onClick={() => setMenuOpen(true)} aria-label="Abrir menú"><Menu /></button><div><p>RefFlow</p><h1>{currentLabel}</h1></div><div className="top-actions"><div className="search"><Search /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar partido…" /></div>{view === "grabados" ? <VideoDialog matches={data.matches} onAdd={(game) => { setData((d) => ({ ...d, recordedGames: [...(d.recordedGames || []), game] })); setSelectedGameId(game.id); }} /> : <MatchDialog competition={activeCompetition} rates={data.rates} onAdd={(m) => setData((d) => ({ ...d, matches: [m, ...d.matches] }))} />}</div></header>{notice && <div className="notice"><ShieldCheck /><span>{notice}</span><button onClick={() => setNotice("")}><X /></button></div>}{legacyMigrationNeeded && <div className="notice legacy-notice"><ShieldCheck /><span>¿Ya usabas RefFlow? Conecta una vez tu acceso anterior para recuperar tus datos.</span><a href="/signin-with-chatgpt?return_to=%2F" target="_top">Recuperar datos</a><button onClick={() => setLegacyMigrationNeeded(false)}>Empezar sin datos anteriores</button></div>}
+  return <div className="app-shell"><aside className={`sidebar ${menuOpen ? "open" : ""}`}><button className="mobile-close" onClick={() => setMenuOpen(false)} aria-label="Cerrar menú"><X /></button><div className="brand"><img className="ball-logo" src="/favicon.svg" alt="" /><div><strong>RefFlow</strong><small>Temporada {shortSeasonName(data.settings.season)}</small></div></div><nav>{nav.map(({ id, label, icon: Icon }) => <button key={id} className={view === id ? "active" : ""} onClick={() => { setView(id); setMenuOpen(false); }}><Icon /><span>{label}</span>{view === id && <ChevronRight className="chev" />}</button>)}</nav><div className="sync-card"><span className={saveState === "error" ? "sync-dot error" : "sync-dot"} /><div><strong>{saveState === "guardando" ? "Guardando…" : saveState === "error" ? "Sin conexión" : "Todo guardado"}</strong><small>Sincronizado con Supabase</small></div></div><div className="profile"><span className="profile-avatar">{data.settings.profileImage ? <img src={data.settings.profileImage} alt="Foto de perfil" /> : initials}</span><div><strong>{data.settings.name}</strong><small>{data.settings.username ? `@${data.settings.username}` : viewer?.email}</small></div><button type="button" onClick={() => void supabase.auth.signOut()} aria-label="Cerrar sesión">Salir</button></div></aside>{menuOpen && <button className="scrim" onClick={() => setMenuOpen(false)} aria-label="Cerrar menú" />}
+    <main className="main-panel"><header className="topbar"><button className="menu-btn" onClick={() => setMenuOpen(true)} aria-label="Abrir menú"><Menu /></button><div><p>RefFlow</p><h1>{currentLabel}</h1></div><div className="top-actions"><div className="search"><Search /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar partido…" /></div>{view === "grabados" ? <VideoDialog matches={data.matches} onAdd={(game) => { setData((d) => ({ ...d, recordedGames: [...(d.recordedGames || []), game] })); setSelectedGameId(game.id); }} /> : <MatchDialog competition={activeCompetition} rates={data.rates} onAdd={(m) => setData((d) => ({ ...d, matches: [m, ...d.matches] }))} />}</div></header>{notice && <div className="notice"><ShieldCheck /><span>{notice}</span><button onClick={() => setNotice("")}><X /></button></div>}{legacyMigrationNeeded && <div className="notice legacy-notice"><ShieldCheck /><span>¿Ya usabas RefFlow? Conecta una vez tu acceso anterior para recuperar tus datos.</span><a href="/signin-with-chatgpt?return_to=%2F" target="_top">Recuperar datos</a><button onClick={() => setLegacyMigrationNeeded(false)}>Empezar sin datos anteriores</button></div>}{data.seasonStatus === "closed" && <div className="notice season-history-notice"><Trophy /><span>Estás viendo la temporada cerrada {shortSeasonName(data.settings.season)}.</span><button onClick={() => { setView("ajustes"); setSettingsTab("seasons"); }}>Cambiar temporada</button></div>}
 
       {view === "inicio" && <section className="content dashboard"><div className="welcome"><div><p>{todayLabel}</p><h2>Hola, {greetingName} <span>👋</span></h2><small>Tienes {nextMatches.length} designaciones próximas.</small></div><button onClick={() => setView("importar")}><UploadCloud /> Importar designaciones</button></div><div className="kpi-grid"><article className="kpi primary"><div><span>ESTA SEMANA</span><strong>{money(weekTotal)}</strong><small>{matchCountLabel(weekMatches.length)}</small></div><div className="kpi-icon"><WalletCards /></div></article><article className="kpi"><div><span>ESTE MES</span><strong>{money(monthTotal)}</strong><small>{monthLabel}</small></div><div className="kpi-icon orange"><BarChart3 /></div></article><article className="kpi"><div><span>TEMPORADA</span><strong>{money(total)}</strong><small>{matchCountLabel(data.matches.length)}</small></div><div className="kpi-icon green"><Trophy /></div></article></div><div className="dashboard-grid"><section className="panel upcoming"><div className="panel-heading"><div><p>PRÓXIMAS DESIGNACIONES</p><h3>Tu fin de semana</h3></div><button onClick={() => setView("regionales")}>Ver regionales <ChevronRight /></button></div>{nextMatches.slice(0,3).map((m, i) => <article className={`match-row ${i === 0 ? "featured" : ""}`} key={m.id}><div className="date-box"><strong>{new Date(`${m.date}T12:00`).getDate()}</strong><span>{new Intl.DateTimeFormat("es-ES", { month: "short" }).format(new Date(`${m.date}T12:00`)).toUpperCase()}</span></div><div className="match-main"><span className="category">{m.category}</span><h4>{m.home} <em>vs</em> {m.away}</h4><p><Clock3 /> {m.time} <MapPin /> {m.venue}</p></div><div className="match-side"><strong>{money(net(m))}</strong><span>Neto estimado</span><button onClick={() => googleCalendar(m)}><CalendarDays /> Calendario</button></div></article>)}</section><aside className="side-stack"><section className="panel earnings"><div className="panel-heading"><div><p>GANANCIAS</p><h3>{monthLabel}</h3></div><CircleEuro /></div><div className="ring"><div><strong>{goalProgress}%</strong><span>del objetivo</span></div></div><div className="earn-row"><span>Cobrado</span><strong>{money(monthTotal)}</strong></div><div className="earn-row"><span>Objetivo</span><strong>{money(data.settings.earningsGoal)}</strong></div><button onClick={() => setView("ganancias")}>Ver desglose <ChevronRight /></button></section><section className="excel-card"><div className="excel-icon"><FileSpreadsheet /></div><div><h3>Excel de temporada</h3><p>Genera tu hoja actualizada con todos los meses.</p><button onClick={exportExcel}><Download /> Descargar .xlsx</button></div></section></aside></div></section>}
 
@@ -688,15 +776,22 @@ export default function RefFlow() {
 
       {view === "tarifas" && <section className="content"><div className="page-heading"><div><p>TARIFAS</p><h2>Temporada {data.settings.season}</h2></div><Button className="primary-btn" onClick={() => setData((d) => ({ ...d, rates: [...d.rates, { id: makeId(), category: "Nueva categoría", role: "Árbitro", amount: 0, retention: RETENTION_RATE }] }))}><Plus /> Nueva tarifa</Button></div><div className="panel table-wrap"><table><thead><tr><th>Competición</th><th>Función</th><th>Tarifa</th><th>Retención</th><th>Neto</th><th></th></tr></thead><tbody>{data.rates.map((r) => <tr key={r.id}><td><Input value={r.category} onChange={(e) => setData((d) => ({ ...d, rates: d.rates.map((x) => x.id === r.id ? { ...x, category: e.target.value } : x) }))} /></td><td><Input value={r.role} onChange={(e) => setData((d) => ({ ...d, rates: d.rates.map((x) => x.id === r.id ? { ...x, role: e.target.value } : x) }))} /></td><td><Input type="number" step="0.01" value={r.amount} onChange={(e) => setData((d) => ({ ...d, rates: d.rates.map((x) => x.id === r.id ? { ...x, amount: Number(e.target.value) } : x) }))} /></td><td><Input type="number" value={RETENTION_RATE} readOnly aria-label="Retención fija del 2 por ciento" /></td><td><strong>{money(r.amount * (1 - RETENTION_RATE / 100))}</strong></td><td><button className="icon-delete" onClick={() => setData((d) => ({ ...d, rates: d.rates.filter((x) => x.id !== r.id) }))}><X /></button></td></tr>)}</tbody></table></div></section>}
 
-      {view === "ajustes" && <section className="content narrow"><div className="section-intro"><p>AJUSTES</p><h2>Personaliza RefFlow</h2><span>Estos datos ayudan a identificarte en las designaciones y organizar la temporada.</span></div><div className="panel settings-form">
-        <div className="settings-profile wide"><span className="settings-avatar">{data.settings.profileImage ? <img src={data.settings.profileImage} alt="Foto de perfil" /> : initials}</span><div><strong>Foto de perfil</strong><span>Se recorta automáticamente y solo se guarda en tu cuenta.</span><div className="settings-photo-actions"><input ref={profileFileRef} hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => void changeProfileImage(event.target.files?.[0])} /><Button type="button" variant="outline" disabled={profileBusy} onClick={() => profileFileRef.current?.click()}><Camera /> {data.settings.profileImage ? "Cambiar foto" : "Añadir foto"}</Button>{data.settings.profileImage && <button type="button" className="text-action" onClick={() => { setData((current) => ({ ...current, settings: { ...current.settings, profileImage: "" } })); setProfileMessage("Foto eliminada."); }}>Eliminar</button>}</div></div></div>
-        <label>Nombre tal como aparece en las designaciones<Input value={data.settings.name} onChange={(e) => setData((d) => ({ ...d, settings: { ...d.settings, name: e.target.value } }))} /></label>
-        <label>Temporada<Input value={data.settings.season} onChange={(e) => setData((d) => ({ ...d, settings: { ...d.settings, season: e.target.value } }))} /></label>
-        <label>Objetivo mensual de ganancias<Input type="number" min="0" step="10" value={data.settings.earningsGoal} onChange={(e) => setData((d) => ({ ...d, settings: { ...d.settings, earningsGoal: Math.max(0, Number(e.target.value) || 0) } }))} /><small>Se usa en el porcentaje de la pantalla de inicio.</small></label>
-        <label>Nombre de usuario<div className="username-control"><Input value={usernameDraft} onChange={(e) => { setUsernameDraft(e.target.value); setProfileMessage(""); }} placeholder="mateo.garcia" autoComplete="username" /><Button type="button" disabled={profileBusy} onClick={() => void saveUsername()}>{profileBusy ? "Guardando…" : "Guardar usuario"}</Button></div><small>De 3 a 24 caracteres, sin espacios. Podrás iniciar sesión con este nombre o con tu correo.</small></label>
-        {profileMessage && <p className="settings-message wide">{profileMessage}</p>}
-        <div className="setting-row"><div><strong>Google Calendar</strong><span>Los botones de cada partido abren el evento listo para confirmar.</span></div><span className="status-ready"><Check /> Disponible</span></div><div className="setting-row"><div><strong>Instalar la aplicación</strong><span>En Android usa “Añadir a pantalla de inicio”; en Windows, “Instalar aplicación”.</span></div><span className="status-ready"><Check /> PWA lista</span></div>
-      </div></section>}
+      {view === "ajustes" && <section className="content narrow"><div className="section-intro"><p>AJUSTES</p><h2>Personaliza RefFlow</h2><span>Configura tu perfil y organiza el historial de temporadas.</span></div>
+        <nav className="settings-tabs" role="tablist" aria-label="Secciones de ajustes"><button type="button" role="tab" aria-selected={settingsTab === "profile"} className={settingsTab === "profile" ? "active" : ""} onClick={() => setSettingsTab("profile")}><Settings /> Perfil y cuenta</button><button type="button" role="tab" aria-selected={settingsTab === "seasons"} className={settingsTab === "seasons" ? "active" : ""} onClick={() => setSettingsTab("seasons")}><Trophy /> Temporadas</button></nav>
+        {settingsTab === "profile" ? <div className="panel settings-form">
+          <div className="settings-profile wide"><span className="settings-avatar">{data.settings.profileImage ? <img src={data.settings.profileImage} alt="Foto de perfil" /> : initials}</span><div><strong>Foto de perfil</strong><span>Se recorta automáticamente y solo se guarda en tu cuenta.</span><div className="settings-photo-actions"><input ref={profileFileRef} hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => void changeProfileImage(event.target.files?.[0])} /><Button type="button" variant="outline" disabled={profileBusy} onClick={() => profileFileRef.current?.click()}><Camera /> {data.settings.profileImage ? "Cambiar foto" : "Añadir foto"}</Button>{data.settings.profileImage && <button type="button" className="text-action" onClick={() => { setData((current) => ({ ...current, settings: { ...current.settings, profileImage: "" } })); setProfileMessage("Foto eliminada."); }}>Eliminar</button>}</div></div></div>
+          <label>Nombre tal como aparece en las designaciones<Input value={data.settings.name} onChange={(e) => setData((d) => ({ ...d, settings: { ...d.settings, name: e.target.value } }))} /></label>
+          <label>Objetivo mensual de ganancias<Input type="number" min="0" step="10" value={data.settings.earningsGoal} onChange={(e) => setData((d) => ({ ...d, settings: { ...d.settings, earningsGoal: Math.max(0, Number(e.target.value) || 0) } }))} /><small>Se usa en el porcentaje de la pantalla de inicio.</small></label>
+          <label>Nombre de usuario<div className="username-control"><Input value={usernameDraft} onChange={(e) => { setUsernameDraft(e.target.value); setProfileMessage(""); }} placeholder="mateo.garcia" autoComplete="username" /><Button type="button" disabled={profileBusy} onClick={() => void saveUsername()}>{profileBusy ? "Guardando…" : "Guardar usuario"}</Button></div><small>De 3 a 24 caracteres, sin espacios. Podrás iniciar sesión con este nombre o con tu correo.</small></label>
+          {profileMessage && <p className="settings-message wide">{profileMessage}</p>}
+          <div className="setting-row"><div><strong>Google Calendar</strong><span>Los botones de cada partido abren el evento listo para confirmar.</span></div><span className="status-ready"><Check /> Disponible</span></div><div className="setting-row"><div><strong>Instalar la aplicación</strong><span>En Android usa “Añadir a pantalla de inicio”; en Windows, “Instalar aplicación”.</span></div><span className="status-ready"><Check /> PWA lista</span></div>
+        </div> : <div className="season-settings">
+          <div className="panel season-overview"><div><span className="season-overview-icon"><Trophy /></span><div><p>TEMPORADA SELECCIONADA</p><h3>{shortSeasonName(data.settings.season)}</h3><span>{matchCountLabel(data.matches.length)} · {money(total)} netos</span></div></div><Button type="button" className="close-season-button" disabled={data.seasonStatus === "closed"} onClick={() => setCloseSeasonOpen(true)}>{data.seasonStatus === "closed" ? "Temporada cerrada" : "Cerrar temporada"}</Button></div>
+          <div className="season-list" aria-label="Temporadas guardadas">{seasonOptions.map((season) => { const seasonTotal = season.matches.reduce((sum, match) => sum + net(match), 0); return <button type="button" className={`season-card ${season.selected ? "selected" : ""}`} aria-pressed={season.selected} key={season.id} onClick={() => selectSeason(season.id)}><span className="season-card-icon"><CalendarDays /></span><span className="season-card-main"><span><strong>{shortSeasonName(season.name)}</strong><em className={season.status}>{season.status === "open" ? "En curso" : "Cerrada"}</em></span><small>{matchCountLabel(season.matches.length)} · {season.recordedGames.length} {season.recordedGames.length === 1 ? "vídeo" : "vídeos"}</small></span><span className="season-card-total"><strong>{money(seasonTotal)}</strong><small>{season.selected ? "Viendo ahora" : "Ver temporada"}</small></span></button>; })}</div>
+          <div className="panel season-help"><ShieldCheck /><div><strong>Tu historial queda guardado</strong><span>Al cerrar una temporada se conservan sus partidos, ganancias y vídeos. La siguiente empieza sin partidos, pero mantiene tu perfil, compañeros y tarifas.</span></div></div>
+        </div>}
+        <Dialog open={closeSeasonOpen} onOpenChange={setCloseSeasonOpen}><DialogContent className="dialog-card season-close-dialog"><DialogHeader><DialogTitle>Cerrar temporada {shortSeasonName(data.settings.season)}</DialogTitle><DialogDescription>Se archivarán todos sus partidos, ganancias y vídeos. Después se abrirá la temporada {shortSeasonName(nextSeasonName)} sin partidos ni ingresos; tus tarifas, compañeros y perfil se conservarán.</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" onClick={() => setCloseSeasonOpen(false)}>Cancelar</Button><Button className="close-season-confirm" onClick={closeCurrentSeason}>Cerrar y crear {shortSeasonName(nextSeasonName)}</Button></DialogFooter></DialogContent></Dialog>
+      </section>}
     </main><nav className="bottom-nav">{nav.filter(({ id }) => ["inicio", "importar", "regionales", "escolares", "ganancias"].includes(id)).map(({ id, label, icon: Icon }) => <button key={id} className={view === id ? "active" : ""} onClick={() => setView(id)}><Icon /><span>{label}</span></button>)}</nav>
   </div>;
 }
