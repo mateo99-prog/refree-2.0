@@ -59,15 +59,16 @@
   overflow:hidden;
   overscroll-behavior:contain;
 }
-.dialog-card>.form-grid,.dialog-card>.video-form{
+.dialog-card>.dialog-scroll,.dialog-card>.video-form{
   min-width:0;
   min-height:0;
   overflow-x:hidden;
   overflow-y:auto;
   overscroll-behavior:contain;
-  padding:2px 5px 2px 2px;
+  padding:2px 5px 18px 2px;
   scrollbar-gutter:stable;
 }
+.dialog-scroll>.form-grid{overflow:visible}
 .form-grid>*,.expense-submenu,.expense-fields>*{min-width:0}
 .expense-fields select,.expense-fields input{width:100%;min-width:0}
 
@@ -82,7 +83,7 @@
     padding:18px;
     gap:12px;
   }
-  .dialog-card>.form-grid,.dialog-card>.video-form{padding-right:3px;scrollbar-gutter:auto}
+  .dialog-card>.dialog-scroll,.dialog-card>.video-form{padding-right:3px;scrollbar-gutter:auto}
   .dialog-card [data-slot="dialog-footer"]{padding-top:12px;border-top:1px solid #e7ecf3}
   .rate-import-control button{width:100%}
 }
