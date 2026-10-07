@@ -18,15 +18,17 @@ import { findMatchForVideoTitle, findRecordedGameForMatch } from "@/lib/video-ma
 
 type View = "inicio" | "importar" | "regionales" | "escolares" | "grabados" | "ganancias" | "arbitros" | "tarifas" | "ajustes";
 type MatchCompetition = "regional" | "escolar";
-type Match = { id: string; competition: MatchCompetition; matchNumber?: string; date: string; time: string; home: string; away: string; category: string; role: string; venue: string; gross: number; diets: number; retention: number; partners: string[]; video?: boolean; status: "confirmado" | "pendiente" };
+type Match = { id: string; competition: MatchCompetition; matchNumber?: string; date: string; time: string; home: string; away: string; category: string; role: string; venue: string; gross: number; diets: number; dietOptionId?: string; dietLabel?: string; mileageKm?: number; mileageRate?: number; mileageOptionId?: string; mileageLabel?: string; friendly?: boolean; retention: number; partners: string[]; video?: boolean; status: "confirmado" | "pendiente" };
 type Rate = { id: string; category: string; role: string; amount: number; retention: number; locked?: boolean };
+type ExpenseOption = { id: string; label: string; amount: number };
+type ExpensePolicy = { season: string; diets: ExpenseOption[]; mileage: ExpenseOption[] };
 type Contact = { id: string; name: string; phone: string; role: string; licenseId?: string; city?: string };
 type VideoAnnotation = { id: string; seconds: number; category: string; label: string; note: string; createdAt: string };
 type RecordedGame = { id: string; title: string; youtubeUrl: string; youtubeId: string; matchId?: string; createdAt: string; annotations: VideoAnnotation[] };
 type SeasonStatus = "open" | "closed";
 type RateSheetMeta = { season: string; fileName: string; importedAt: string; source: "included" | "pdf" };
-type SeasonArchive = { id: string; name: string; status: SeasonStatus; matches: Match[]; rates: Rate[]; rateSheet?: RateSheetMeta; contacts: Contact[]; recordedGames: RecordedGame[]; earningsGoal: number; closedAt?: string };
-type AppData = { dataVersion: number; activeSeasonId: string; seasonStatus: SeasonStatus; seasonArchives: SeasonArchive[]; matches: Match[]; rates: Rate[]; rateSheet?: RateSheetMeta; contacts: Contact[]; recordedGames: RecordedGame[]; settings: { name: string; season: string; earningsGoal: number; username: string; profileImage: string } };
+type SeasonArchive = { id: string; name: string; status: SeasonStatus; matches: Match[]; rates: Rate[]; rateSheet?: RateSheetMeta; expensePolicy?: ExpensePolicy; contacts: Contact[]; recordedGames: RecordedGame[]; earningsGoal: number; closedAt?: string };
+type AppData = { dataVersion: number; activeSeasonId: string; seasonStatus: SeasonStatus; seasonArchives: SeasonArchive[]; matches: Match[]; rates: Rate[]; rateSheet?: RateSheetMeta; expensePolicy?: ExpensePolicy; contacts: Contact[]; recordedGames: RecordedGame[]; settings: { name: string; season: string; earningsGoal: number; username: string; profileImage: string } };
 type Viewer = { userId: string; displayName: string; email: string; fullName: string | null };
 
 const RETENTION_RATE = 2;
@@ -80,6 +82,21 @@ const OFFICIAL_RATES_2026_27: Rate[] = OFFICIAL_RATE_TABLE.flatMap(([category, a
   }])
 );
 const DEFAULT_RATE_SHEET: RateSheetMeta = { season: "2026/27", fileName: "Tarifas oficiales incluidas", importedAt: "", source: "included" };
+const DEFAULT_EXPENSE_POLICY: ExpensePolicy = {
+  season: "2026/27",
+  diets: [
+    { id: "de1kma75km", label: "De 1 km a 75 km", amount: 6.3 },
+    { id: "de76kma150km", label: "De 76 km a 150 km", amount: 9.4 },
+    { id: "de151kma250km", label: "De 151 km a 250 km", amount: 15.65 },
+    { id: "de251km", label: "Más de 251 km", amount: 18.85 },
+  ],
+  mileage: [
+    { id: "kmindividual", label: "Individual", amount: 0.23 },
+    { id: "kmcolectivo", label: "Colectivo", amount: 0.26 },
+    { id: "kmcadregional", label: "CAD regional", amount: 0.26 },
+    { id: "kmdeportebase", label: "Deporte base", amount: 0.26 },
+  ],
+};
 const mergeOfficialRates = (rates: Rate[] = []): Rate[] => {
   const importedOfficialRates = rates.filter((rate) => rate.id.startsWith("official-imported-") && rate.locked);
   const officialRates = importedOfficialRates.length > 0 ? importedOfficialRates : OFFICIAL_RATES_2026_27;
@@ -91,7 +108,7 @@ const mergeOfficialRates = (rates: Rate[] = []): Rate[] => {
 };
 
 const sampleData: AppData = {
-  dataVersion: 8,
+  dataVersion: 9,
   activeSeasonId: "season-2026-27",
   seasonStatus: "open",
   seasonArchives: [],
@@ -102,17 +119,18 @@ const sampleData: AppData = {
   ],
   rates: mergeOfficialRates(),
   rateSheet: DEFAULT_RATE_SHEET,
+  expensePolicy: DEFAULT_EXPENSE_POLICY,
   contacts: [],
   recordedGames: [],
   settings: { name: "Árbitro", season: "2026/27", earningsGoal: 250, username: "", profileImage: "" },
 };
-const emptyData = (name: string): AppData => ({ dataVersion: 8, activeSeasonId: "season-2026-27", seasonStatus: "open", seasonArchives: [], matches: [], rates: mergeOfficialRates(), rateSheet: DEFAULT_RATE_SHEET, contacts: [], recordedGames: [], settings: { name, season: "2026/27", earningsGoal: 250, username: "", profileImage: "" } });
+const emptyData = (name: string): AppData => ({ dataVersion: 9, activeSeasonId: "season-2026-27", seasonStatus: "open", seasonArchives: [], matches: [], rates: mergeOfficialRates(), rateSheet: DEFAULT_RATE_SHEET, expensePolicy: DEFAULT_EXPENSE_POLICY, contacts: [], recordedGames: [], settings: { name, season: "2026/27", earningsGoal: 250, username: "", profileImage: "" } });
 
 const nav: { id: View; label: string; icon: LucideIcon }[] = [
   { id: "inicio", label: "Inicio", icon: Home }, { id: "importar", label: "Importar", icon: FileUp }, { id: "regionales", label: "Regionales", icon: CalendarDays }, { id: "escolares", label: "Partidos escolares", icon: Trophy }, { id: "grabados", label: "Partidos grabados", icon: Video },
   { id: "ganancias", label: "Ganancias", icon: BarChart3 }, { id: "arbitros", label: "Árbitros", icon: Users }, { id: "tarifas", label: "Tarifas", icon: CircleEuro }, { id: "ajustes", label: "Ajustes", icon: Settings },
 ];
-const CURRENT_DATA_VERSION = 8;
+const CURRENT_DATA_VERSION = 9;
 const SAMPLE_CONTACT_IDS = new Set(["a1", "a2"]);
 const seasonStartYearFromName = (value: string) => {
   const raw = value.match(/(\d{2,4})\s*\/\s*(\d{2,4})/);
@@ -126,14 +144,24 @@ const shortSeasonName = (value: string) => {
 };
 const fullSeasonName = (start: number) => `${start}/${String(start + 1).slice(-2)}`;
 const seasonIdFor = (name: string) => { const start = seasonStartYearFromName(name); return `season-${start}-${String(start + 1).slice(-2)}`; };
+const normalizeMatch = (match: Match): Match => ({
+  ...match,
+  competition: isSchoolCategory(match.category) || match.competition === "escolar" ? "escolar" : "regional",
+  diets: Math.max(0, Number(match.diets) || 0),
+  mileageKm: Math.max(0, Number(match.mileageKm) || 0),
+  mileageRate: Math.max(0, Number(match.mileageRate) || 0),
+  friendly: (isSchoolCategory(match.category) || match.competition === "escolar") && Boolean(match.friendly),
+  retention: RETENTION_RATE,
+});
 const normalizeSeasonArchive = (season: SeasonArchive): SeasonArchive => ({
   ...season,
   id: season.id || seasonIdFor(season.name),
   name: season.name || "2026/27",
   status: season.status === "open" ? "open" : "closed",
-  matches: (season.matches || []).map((match) => ({ ...match, competition: isSchoolCategory(match.category) || match.competition === "escolar" ? "escolar" : "regional", retention: RETENTION_RATE })),
+  matches: (season.matches || []).map(normalizeMatch),
   rates: (season.rates || []).map((rate) => ({ ...rate, retention: RETENTION_RATE })),
   rateSheet: season.rateSheet,
+  expensePolicy: season.expensePolicy,
   contacts: season.contacts || [],
   recordedGames: season.recordedGames || [],
   earningsGoal: Number.isFinite(Number(season.earningsGoal)) && Number(season.earningsGoal) >= 0 ? Number(season.earningsGoal) : 250,
@@ -147,9 +175,10 @@ const normalizeData = (state: AppData): AppData => {
     activeSeasonId: (state.dataVersion || 0) >= 5 && state.activeSeasonId ? state.activeSeasonId : seasonIdFor(state.settings?.season || "2026/27"),
     seasonStatus: (state.dataVersion || 0) >= 5 && state.seasonStatus === "closed" ? "closed" : "open",
     seasonArchives: ((state.dataVersion || 0) >= 5 ? state.seasonArchives || [] : []).map(normalizeSeasonArchive),
-    matches: (state.matches || []).map((match) => ({ ...match, competition: isSchoolCategory(match.category) || match.competition === "escolar" ? "escolar" : "regional", retention: RETENTION_RATE })),
+    matches: (state.matches || []).map(normalizeMatch),
     rates: mergeOfficialRates(state.rates || []),
     rateSheet: state.rateSheet || DEFAULT_RATE_SHEET,
+    expensePolicy: state.expensePolicy || DEFAULT_EXPENSE_POLICY,
     contacts: removeSampleContacts ? (state.contacts || []).filter((contact) => !SAMPLE_CONTACT_IDS.has(contact.id)) : (state.contacts || []),
     settings: {
       name: state.settings?.name || "Árbitro",
@@ -161,7 +190,11 @@ const normalizeData = (state: AppData): AppData => {
   };
 };
 const money = (n: number) => new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(n);
-const net = (m: Match) => m.gross * (1 - RETENTION_RATE / 100) + m.diets;
+const payableTariff = (m: Match) => m.gross * (m.competition === "escolar" && m.friendly ? 0.5 : 1);
+const mileageAmount = (m: Match) => Math.max(0, Number(m.mileageKm) || 0) * Math.max(0, Number(m.mileageRate) || 0);
+const grossWithExpenses = (m: Match) => payableTariff(m) + m.diets + mileageAmount(m);
+const net = (m: Match) => payableTariff(m) * (1 - RETENTION_RATE / 100) + m.diets + mileageAmount(m);
+const financialBreakdown = (m: Match) => `${money(payableTariff(m))} tarifa${m.friendly ? " (amistoso 50 %)" : ""} + ${money(m.diets)} dietas + ${money(mileageAmount(m))} kilometraje`;
 const normalizeRateField = rateTextKey;
 const canonicalCategory = (value: string) => {
   const category = normalizeRateField(value);
@@ -296,6 +329,7 @@ const seasonSnapshot = (state: AppData, status: SeasonStatus = state.seasonStatu
   matches: state.matches,
   rates: state.rates,
   rateSheet: state.rateSheet,
+  expensePolicy: state.expensePolicy,
   contacts: state.contacts,
   recordedGames: state.recordedGames || [],
   earningsGoal: state.settings.earningsGoal,
@@ -338,30 +372,55 @@ function googleCalendar(m: Match) {
   window.open(`https://calendar.google.com/calendar/render?${p}`, "_blank", "noopener,noreferrer");
 }
 
-function MatchDialog({ competition, rates, onAdd }: { competition: MatchCompetition; rates: Rate[]; onAdd: (m: Match) => void }) {
-  const [open, setOpen] = useState(false); const [form, setForm] = useState({ date: "2026-09-26", time: "18:00", home: "", away: "", category: "", role: "Árbitro", venue: "", gross: "0" });
+function MatchDialog({ competition, rates, expensePolicy, onAdd }: { competition: MatchCompetition; rates: Rate[]; expensePolicy: ExpensePolicy; onAdd: (m: Match) => void }) {
+  const [open, setOpen] = useState(false); const [form, setForm] = useState({ date: "2026-09-26", time: "18:00", home: "", away: "", category: "", role: "Árbitro", venue: "", gross: "0", dietOptionId: "none", mileageOptionId: "none", mileageKm: "", friendly: false });
   const [rateMessage, setRateMessage] = useState("");
   const set = (key: string, value: string) => { setForm((f) => ({ ...f, [key]: value })); if (key === "category" || key === "role") setRateMessage(""); };
   const importRate = () => { const savedRate = findSavedRate(rates, form.category, form.role); if (!savedRate) { setRateMessage("No hay una tarifa guardada para esa categoría y función."); return; } setForm((current) => ({ ...current, gross: String(savedRate.amount) })); setRateMessage(`Tarifa importada: ${money(savedRate.amount)}`); };
   const changeOpen = (nextOpen: boolean) => { if (!nextOpen) setRateMessage(""); setOpen(nextOpen); };
-  const submit = () => { if (!form.home.trim() || !form.away.trim()) return; const match: Match = { id: makeId(), competition, ...form, category: form.category.trim() || "Sin categoría", role: form.role.trim() || "Árbitro", gross: Math.max(0, Number(form.gross) || 0), diets: 0, retention: RETENTION_RATE, partners: [], video: false, status: "confirmado" }; onAdd(applySavedRate(match, rates)); setRateMessage(""); setOpen(false); };
+  const selectedDiet = expensePolicy.diets.find((option) => option.id === form.dietOptionId);
+  const selectedMileage = expensePolicy.mileage.find((option) => option.id === form.mileageOptionId);
+  const matchedRate = findSavedRate(rates, form.category, form.role);
+  const baseTariff = matchedRate?.amount ?? Math.max(0, Number(form.gross) || 0);
+  const previewTariff = baseTariff * (competition === "escolar" && form.friendly ? 0.5 : 1);
+  const previewMileage = Math.max(0, Number(form.mileageKm) || 0) * (selectedMileage?.amount || 0);
+  const previewNet = previewTariff * (1 - RETENTION_RATE / 100) + (selectedDiet?.amount || 0) + previewMileage;
+  const submit = () => {
+    if (!form.home.trim() || !form.away.trim()) return;
+    const match: Match = { id: makeId(), competition, date: form.date, time: form.time, home: form.home.trim(), away: form.away.trim(), category: form.category.trim() || "Sin categoría", role: form.role.trim() || "Árbitro", venue: form.venue.trim(), gross: baseTariff, diets: selectedDiet?.amount || 0, dietOptionId: selectedDiet?.id, dietLabel: selectedDiet?.label, mileageKm: selectedMileage ? Math.max(0, Number(form.mileageKm) || 0) : 0, mileageRate: selectedMileage?.amount || 0, mileageOptionId: selectedMileage?.id, mileageLabel: selectedMileage?.label, friendly: competition === "escolar" && form.friendly, retention: RETENTION_RATE, partners: [], video: false, status: "confirmado" };
+    onAdd(match); setRateMessage(""); setOpen(false);
+  };
   return <Dialog open={open} onOpenChange={changeOpen}><DialogTrigger asChild><Button className="primary-btn"><Plus /> Nuevo partido</Button></DialogTrigger><DialogContent className="dialog-card"><DialogHeader><DialogTitle>Añadir partido</DialogTitle><DialogDescription>Regístralo manualmente si todavía no tienes el PDF.</DialogDescription></DialogHeader><div className="form-grid">
     <label>Fecha<Input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} /></label><label>Hora<Input type="time" value={form.time} onChange={(e) => set("time", e.target.value)} /></label>
     <label>Equipo local<Input placeholder="Equipo local" value={form.home} onChange={(e) => set("home", e.target.value)} /></label><label>Equipo visitante<Input placeholder="Equipo visitante" value={form.away} onChange={(e) => set("away", e.target.value)} /></label>
     <label>Categoría<Input placeholder="Junior Autonómico" value={form.category} onChange={(e) => set("category", e.target.value)} /></label><label>Función<Input value={form.role} onChange={(e) => set("role", e.target.value)} /></label>
-    <label className="wide">Pabellón<Input placeholder="Pabellón" value={form.venue} onChange={(e) => set("venue", e.target.value)} /></label><label>Tarifa bruta<Input type="number" min="0" step="0.01" value={form.gross} onChange={(e) => set("gross", e.target.value)} /></label>
+    <label className="wide">Pabellón<Input placeholder="Pabellón" value={form.venue} onChange={(e) => set("venue", e.target.value)} /></label><label>Tarifa base<Input type="number" min="0" step="0.01" value={form.gross} onChange={(e) => set("gross", e.target.value)} /></label>
     <div className="wide"><Button type="button" variant="outline" onClick={importRate}><CircleEuro /> Importar tarifa guardada</Button>{rateMessage && <p className="form-helper">{rateMessage}</p>}</div>
+    {competition === "escolar" && <label className="wide friendly-toggle"><input type="checkbox" checked={form.friendly} onChange={(event) => setForm((current) => ({ ...current, friendly: event.target.checked }))} /><span><strong>Partido amistoso</strong><small>Se abonará el 50 % de la tarifa base. Dietas y kilometraje se mantienen íntegros.</small></span></label>}
+    <details className="wide expense-submenu" open><summary>Dietas y kilometraje</summary><div className="expense-fields">
+      <label>Dieta<NativeSelect className="w-full" value={form.dietOptionId} onChange={(event) => set("dietOptionId", event.target.value)}><NativeSelectOption value="none">Sin dieta</NativeSelectOption>{expensePolicy.diets.map((option) => <NativeSelectOption key={option.id} value={option.id}>{option.label} · {money(option.amount)}</NativeSelectOption>)}</NativeSelect></label>
+      <label>Desplazamiento en coche<NativeSelect className="w-full" value={form.mileageOptionId} onChange={(event) => set("mileageOptionId", event.target.value)}><NativeSelectOption value="none">No llevo coche</NativeSelectOption>{expensePolicy.mileage.map((option) => <NativeSelectOption key={option.id} value={option.id}>{option.label} · {money(option.amount)}/km</NativeSelectOption>)}</NativeSelect></label>
+      {selectedMileage && <label>Kilómetros totales<Input type="number" min="0" step="1" value={form.mileageKm} onChange={(event) => set("mileageKm", event.target.value)} placeholder="Ej. 84" /></label>}
+      <div className="expense-preview"><span>Tarifa computada <strong>{money(previewTariff)}</strong></span><span>Gastos <strong>{money((selectedDiet?.amount || 0) + previewMileage)}</strong></span><span>Neto estimado <strong>{money(previewNet)}</strong></span></div>
+    </div></details>
   </div><DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button><Button className="primary-btn" onClick={submit}>Guardar partido</Button></DialogFooter></DialogContent></Dialog>;
 }
 
-function EditMatchDialog({ match, rates, onSave }: { match: Match; rates: Rate[]; onSave: (match: Match) => void }) {
-  const formFromMatch = (item: Match) => ({ date: item.date, time: item.time, home: item.home, away: item.away, category: item.category, role: item.role, venue: item.venue, gross: String(item.gross), diets: String(item.diets), partners: item.partners.join(", ") });
+function EditMatchDialog({ match, rates, expensePolicy, onSave }: { match: Match; rates: Rate[]; expensePolicy: ExpensePolicy; onSave: (match: Match) => void }) {
+  const formFromMatch = (item: Match) => ({ date: item.date, time: item.time, home: item.home, away: item.away, category: item.category, role: item.role, venue: item.venue, gross: String(item.gross), dietOptionId: item.dietOptionId || expensePolicy.diets.find((option) => Math.abs(option.amount - item.diets) < 0.001)?.id || (item.diets > 0 ? "custom" : "none"), mileageOptionId: item.mileageOptionId || expensePolicy.mileage.find((option) => Math.abs(option.amount - (item.mileageRate || 0)) < 0.001)?.id || ((item.mileageRate || 0) > 0 ? "custom" : "none"), mileageKm: item.mileageKm ? String(item.mileageKm) : "", friendly: Boolean(item.friendly), partners: item.partners.join(", ") });
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(() => formFromMatch(match));
   const [rateMessage, setRateMessage] = useState("");
-  const set = (key: keyof typeof form, value: string) => { setForm((current) => ({ ...current, [key]: value })); if (key === "category" || key === "role") setRateMessage(""); };
+  const set = (key: keyof Omit<typeof form, "friendly">, value: string) => { setForm((current) => ({ ...current, [key]: value })); if (key === "category" || key === "role") setRateMessage(""); };
   const importRate = () => { const savedRate = findSavedRate(rates, form.category, form.role); if (!savedRate) { setRateMessage("No hay una tarifa guardada para esa categoría y función."); return; } setForm((current) => ({ ...current, gross: String(savedRate.amount) })); setRateMessage(`Tarifa importada: ${money(savedRate.amount)}`); };
   const changeOpen = (nextOpen: boolean) => { if (nextOpen) setForm(formFromMatch(match)); setRateMessage(""); setOpen(nextOpen); };
+  const selectedDiet = form.dietOptionId === "custom" ? { id: "custom", label: match.dietLabel || "Importe anterior", amount: match.diets } : expensePolicy.diets.find((option) => option.id === form.dietOptionId);
+  const selectedMileage = form.mileageOptionId === "custom" ? { id: "custom", label: match.mileageLabel || "Importe anterior", amount: match.mileageRate || 0 } : expensePolicy.mileage.find((option) => option.id === form.mileageOptionId);
+  const matchedRate = findSavedRate(rates, form.category, form.role);
+  const baseTariff = matchedRate?.amount ?? Math.max(0, Number(form.gross) || 0);
+  const previewTariff = baseTariff * (match.competition === "escolar" && form.friendly ? 0.5 : 1);
+  const previewMileage = Math.max(0, Number(form.mileageKm) || 0) * (selectedMileage?.amount || 0);
+  const previewNet = previewTariff * (1 - RETENTION_RATE / 100) + (selectedDiet?.amount || 0) + previewMileage;
   const submit = () => {
     if (!form.home.trim() || !form.away.trim()) return;
     const updatedMatch: Match = {
@@ -373,12 +432,19 @@ function EditMatchDialog({ match, rates, onSave }: { match: Match; rates: Rate[]
       category: form.category.trim() || "Sin categoría",
       role: form.role.trim() || "Árbitro",
       venue: form.venue.trim(),
-      gross: Math.max(0, Number(form.gross) || 0),
-      diets: Math.max(0, Number(form.diets) || 0),
+      gross: baseTariff,
+      diets: selectedDiet?.amount || 0,
+      dietOptionId: selectedDiet?.id,
+      dietLabel: selectedDiet?.label,
+      mileageKm: selectedMileage ? Math.max(0, Number(form.mileageKm) || 0) : 0,
+      mileageRate: selectedMileage?.amount || 0,
+      mileageOptionId: selectedMileage?.id,
+      mileageLabel: selectedMileage?.label,
+      friendly: match.competition === "escolar" && form.friendly,
       retention: RETENTION_RATE,
       partners: form.partners.split(",").map((partner) => partner.trim()).filter(Boolean),
     };
-    onSave(applySavedRate(updatedMatch, rates));
+    onSave(updatedMatch);
     setOpen(false);
   };
   return <Dialog open={open} onOpenChange={changeOpen}><DialogTrigger asChild><button aria-label={`Editar ${match.home} contra ${match.away}`} title="Editar partido"><Pencil /></button></DialogTrigger><DialogContent className="dialog-card"><DialogHeader><DialogTitle>Editar partido</DialogTitle><DialogDescription>Actualiza la designación y añade los compañeros separados por comas.</DialogDescription></DialogHeader><div className="form-grid">
@@ -386,8 +452,15 @@ function EditMatchDialog({ match, rates, onSave }: { match: Match; rates: Rate[]
     <label>Equipo local<Input value={form.home} onChange={(e) => set("home", e.target.value)} /></label><label>Equipo visitante<Input value={form.away} onChange={(e) => set("away", e.target.value)} /></label>
     <label>Categoría<Input value={form.category} onChange={(e) => set("category", e.target.value)} /></label><label>Función<Input value={form.role} onChange={(e) => set("role", e.target.value)} /></label>
     <label className="wide">Pabellón<Input value={form.venue} onChange={(e) => set("venue", e.target.value)} /></label>
-    <label>Tarifa bruta<Input type="number" min="0" step="0.01" value={form.gross} onChange={(e) => set("gross", e.target.value)} /></label><label>Dietas<Input type="number" min="0" step="0.01" value={form.diets} onChange={(e) => set("diets", e.target.value)} /></label>
+    <label>Tarifa base<Input type="number" min="0" step="0.01" value={form.gross} onChange={(e) => set("gross", e.target.value)} /></label>
     <div className="wide"><Button type="button" variant="outline" onClick={importRate}><CircleEuro /> Importar tarifa guardada</Button>{rateMessage && <p className="form-helper">{rateMessage}</p>}</div>
+    {match.competition === "escolar" && <label className="wide friendly-toggle"><input type="checkbox" checked={form.friendly} onChange={(event) => setForm((current) => ({ ...current, friendly: event.target.checked }))} /><span><strong>Partido amistoso</strong><small>Se abonará el 50 % de la tarifa base. Dietas y kilometraje se mantienen íntegros.</small></span></label>}
+    <details className="wide expense-submenu" open><summary>Dietas y kilometraje</summary><div className="expense-fields">
+      <label>Dieta<NativeSelect className="w-full" value={form.dietOptionId} onChange={(event) => set("dietOptionId", event.target.value)}><NativeSelectOption value="none">Sin dieta</NativeSelectOption>{form.dietOptionId === "custom" && <NativeSelectOption value="custom">Importe anterior · {money(match.diets)}</NativeSelectOption>}{expensePolicy.diets.map((option) => <NativeSelectOption key={option.id} value={option.id}>{option.label} · {money(option.amount)}</NativeSelectOption>)}</NativeSelect></label>
+      <label>Desplazamiento en coche<NativeSelect className="w-full" value={form.mileageOptionId} onChange={(event) => set("mileageOptionId", event.target.value)}><NativeSelectOption value="none">No llevo coche</NativeSelectOption>{form.mileageOptionId === "custom" && <NativeSelectOption value="custom">Importe anterior · {money(match.mileageRate || 0)}/km</NativeSelectOption>}{expensePolicy.mileage.map((option) => <NativeSelectOption key={option.id} value={option.id}>{option.label} · {money(option.amount)}/km</NativeSelectOption>)}</NativeSelect></label>
+      {selectedMileage && <label>Kilómetros totales<Input type="number" min="0" step="1" value={form.mileageKm} onChange={(event) => set("mileageKm", event.target.value)} /></label>}
+      <div className="expense-preview"><span>Tarifa computada <strong>{money(previewTariff)}</strong></span><span>Gastos <strong>{money((selectedDiet?.amount || 0) + previewMileage)}</strong></span><span>Neto estimado <strong>{money(previewNet)}</strong></span></div>
+    </div></details>
     <label className="wide">Compañeros · separados por comas<Input value={form.partners} onChange={(e) => set("partners", e.target.value)} placeholder="Ana López, Carlos Ruiz" /></label>
   </div><DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button><Button className="primary-btn" onClick={submit}>Guardar cambios</Button></DialogFooter></DialogContent></Dialog>;
 }
@@ -544,7 +617,7 @@ export default function RefFlow() {
       label: capitalize(new Intl.DateTimeFormat("es-ES", { month: "long", year: "numeric" }).format(date)),
       shortLabel: capitalize(new Intl.DateTimeFormat("es-ES", { month: "short" }).format(date).replace(".", "")),
       matches,
-      gross: matches.reduce((sum, match) => sum + match.gross + match.diets, 0),
+      gross: matches.reduce((sum, match) => sum + grossWithExpenses(match), 0),
       total: matches.reduce((sum, match) => sum + net(match), 0),
     };
   });
@@ -666,6 +739,7 @@ export default function RefFlow() {
   };
   const applyRatePdf = () => {
     if (!ratePdfPreview) return;
+    const hasExpensePolicy = ratePdfPreview.diets.length > 0 && ratePdfPreview.mileage.length > 0;
     const seasonKey = ratePdfPreview.season.replace(/\D/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
     const importedRates: Rate[] = ratePdfPreview.rates.map((rate, index) => ({
       ...rate,
@@ -681,9 +755,10 @@ export default function RefFlow() {
         dataVersion: CURRENT_DATA_VERSION,
         rates: mergeOfficialRates([...importedRates, ...customRates]),
         rateSheet: { season: ratePdfPreview.season, fileName: ratePdfFileName, importedAt: new Date().toISOString(), source: "pdf" },
+        expensePolicy: hasExpensePolicy ? { season: ratePdfPreview.season, diets: ratePdfPreview.diets, mileage: ratePdfPreview.mileage } : current.expensePolicy || DEFAULT_EXPENSE_POLICY,
       };
     });
-    setNotice(`${importedRates.length} tarifas oficiales de ${ratePdfPreview.season} actualizadas con retención fija del 2 %. FEB, Liga Provincial Guadalajara y trofeos se han omitido.`);
+    setNotice(`${importedRates.length} tarifas oficiales de ${ratePdfPreview.season} actualizadas con retención fija del 2 %.${hasExpensePolicy ? " También se actualizaron dietas y kilometraje." : ""} FEB, Liga Provincial Guadalajara y trofeos se han omitido.`);
     discardRatePdf();
   };
 
@@ -705,52 +780,52 @@ export default function RefFlow() {
       title.alignment = { horizontal: "center", vertical: "middle" };
       ws.getRow(1).height = 34;
       ws.addRow([]);
-      const year = nums[index] >= 9 ? 2026 : 2027;
+      const year = date.getFullYear();
       const monthMatches = data.matches.filter((match) => Number(match.date.slice(0, 4)) === year && Number(match.date.slice(5, 7)) === nums[index]);
       const addSection = (label: string, competition: MatchCompetition, sectionColor: string) => {
         const sectionRow = ws.addRow([label]);
-        for (let col = 1; col <= 10; col += 1) {
+        for (let col = 1; col <= 12; col += 1) {
           sectionRow.getCell(col).fill = { type: "pattern", pattern: "solid", fgColor: { argb: sectionColor } };
           sectionRow.getCell(col).font = { bold: true, color: { argb: "FFFFFFFF" } };
         }
-        ws.mergeCells(sectionRow.number, 1, sectionRow.number, 10);
+        ws.mergeCells(sectionRow.number, 1, sectionRow.number, 12);
         sectionRow.height = 26;
         sectionRow.getCell(1).alignment = { horizontal: "left", vertical: "middle" };
-        const header = ws.addRow(["FECHA", "HORA", "LOCAL", "VISITANTE", "CATEGORÍA", "FUNCIÓN", "TARIFA", "DIETAS", "TOTAL BRUTO", "TOTAL NETO"]);
+        const header = ws.addRow(["FECHA", "HORA", "LOCAL", "VISITANTE", "CATEGORÍA", "FUNCIÓN", "TARIFA", "KM", "DIETAS", "KILOMETRAJE", "TOTAL BRUTO", "TOTAL NETO"]);
         header.font = { bold: true, color: { argb: "FFFFFFFF" } };
         header.height = 28;
         header.eachCell((cell, col) => {
-          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: col <= 2 ? "FF29415F" : col <= 6 ? "FF0B5CFF" : col <= 8 ? "FFFF8A1D" : "FF16A085" } };
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: col <= 2 ? "FF29415F" : col <= 6 ? "FF0B5CFF" : col <= 10 ? "FFFF8A1D" : "FF16A085" } };
           cell.alignment = { horizontal: "center", vertical: "middle" };
         });
         const sectionMatches = monthMatches.filter((match) => match.competition === competition);
         const firstMatchRow = ws.rowCount + 1;
-        sectionMatches.forEach((match) => ws.addRow([match.date, match.time, match.home, match.away, match.category, match.role, match.gross, match.diets, match.gross + match.diets, net(match)]));
+        sectionMatches.forEach((match) => ws.addRow([match.date, match.time, match.home, match.away, match.friendly ? `${match.category} · AMISTOSO` : match.category, match.role, payableTariff(match), match.mileageKm || 0, match.diets, mileageAmount(match), grossWithExpenses(match), net(match)]));
         if (sectionMatches.length === 0) {
           const emptyRow = ws.addRow([`Sin partidos ${competition === "regional" ? "regionales" : "escolares"} este mes`]);
           emptyRow.font = { italic: true, color: { argb: "FF7D899B" } };
-          ws.mergeCells(emptyRow.number, 1, emptyRow.number, 10);
+          ws.mergeCells(emptyRow.number, 1, emptyRow.number, 12);
         }
         const lastMatchRow = ws.rowCount;
-        const grossTotalValue = sectionMatches.reduce((sum, match) => sum + match.gross + match.diets, 0);
+        const grossTotalValue = sectionMatches.reduce((sum, match) => sum + grossWithExpenses(match), 0);
         const netTotalValue = sectionMatches.reduce((sum, match) => sum + net(match), 0);
-        const grossTotal = sectionMatches.length ? { formula: `SUM(I${firstMatchRow}:I${lastMatchRow})`, result: grossTotalValue } : 0;
-        const netTotal = sectionMatches.length ? { formula: `SUM(J${firstMatchRow}:J${lastMatchRow})`, result: netTotalValue } : 0;
-        const totalRow = ws.addRow(["", "", "", "", "", `TOTAL ${label}`, "", "", grossTotal, netTotal]);
+        const grossTotal = sectionMatches.length ? { formula: `SUM(K${firstMatchRow}:K${lastMatchRow})`, result: grossTotalValue } : 0;
+        const netTotal = sectionMatches.length ? { formula: `SUM(L${firstMatchRow}:L${lastMatchRow})`, result: netTotalValue } : 0;
+        const totalRow = ws.addRow(["", "", "", "", "", `TOTAL ${label}`, "", "", "", "", grossTotal, netTotal]);
         totalRow.font = { bold: true };
         totalRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE7F0FF" } };
         ws.addRow([]);
       };
       addSection("REGIONALES", "regional", "FF0B5CFF");
       addSection("ESCOLARES", "escolar", "FFF47B20");
-      const monthlyGross = monthMatches.reduce((sum, match) => sum + match.gross + match.diets, 0);
+      const monthlyGross = monthMatches.reduce((sum, match) => sum + grossWithExpenses(match), 0);
       const monthlyNet = monthMatches.reduce((sum, match) => sum + net(match), 0);
-      const monthlyTotalRow = ws.addRow(["", "", "", "", "", "TOTAL DEL MES", "", "", monthlyGross, monthlyNet]);
+      const monthlyTotalRow = ws.addRow(["", "", "", "", "", "TOTAL DEL MES", "", "", "", "", monthlyGross, monthlyNet]);
       monthlyTotalRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
       monthlyTotalRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF07152D" } };
       monthlyTotalRow.height = 28;
-      [7, 8, 9, 10].forEach((col) => { ws.getColumn(col).numFmt = '#,##0.00 [$€-es-ES]'; });
-      ws.columns = [{ width: 13 }, { width: 9 }, { width: 23 }, { width: 23 }, { width: 22 }, { width: 20 }, { width: 12 }, { width: 12 }, { width: 15 }, { width: 15 }];
+      [7, 9, 10, 11, 12].forEach((col) => { ws.getColumn(col).numFmt = '#,##0.00 [$€-es-ES]'; });
+      ws.columns = [{ width: 13 }, { width: 9 }, { width: 23 }, { width: 23 }, { width: 25 }, { width: 20 }, { width: 12 }, { width: 9 }, { width: 12 }, { width: 15 }, { width: 15 }, { width: 15 }];
     });
     const summary = wb.addWorksheet("RESUMEN");
     summary.columns = [{ width: 28 }, { width: 18 }];
@@ -783,6 +858,7 @@ export default function RefFlow() {
         matches: target.matches,
         rates: target.rates,
         rateSheet: target.rateSheet || (target.rates.some((rate) => rate.id.startsWith("official-imported-")) ? current.rateSheet : DEFAULT_RATE_SHEET),
+        expensePolicy: target.expensePolicy || current.expensePolicy || DEFAULT_EXPENSE_POLICY,
         contacts: target.contacts,
         recordedGames: target.recordedGames,
         settings: { ...current.settings, season: target.name, earningsGoal: target.earningsGoal },
@@ -889,7 +965,7 @@ export default function RefFlow() {
 
       {view === "importar" && <section className="content narrow"><div className="section-intro"><p>IMPORTAR DESIGNACIONES</p><h2>Sube el PDF de la federación</h2><span>RefFlow detectará cada partido y los colegiados de su ficha detallada.</span></div><input ref={fileRef} hidden type="file" accept="application/pdf,.pdf" onChange={(e) => void importPdf(e.target.files?.[0])} /><button type="button" className={`drop-zone ${pdfState}`} onClick={() => fileRef.current?.click()} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); void importPdf(e.dataTransfer.files[0]); }}><span className="drop-icon"><FileUp /></span><strong>{pdfState === "reading" ? "Analizando partidos y colegiados…" : pdfState === "ready" ? "Designaciones detectadas" : pdfState === "error" ? "No se pudo analizar el PDF" : "Arrastra aquí el PDF de designaciones"}</strong><small>{pdfState === "ready" ? `${pdfFileName} · revisa el resultado antes de importar` : pdfState === "error" ? pdfError : "o pulsa para seleccionarlo · máximo 20 MB"}</small><span className="fake-button">{pdfState === "ready" ? "Elegir otro PDF" : pdfState === "error" ? "Volver a intentarlo" : "Seleccionar PDF"}</span></button>{pdfState === "ready" && pdfImport && <div className="panel pdf-result"><div className="panel-heading"><div><p>REVISIÓN PREVIA</p><h3>{pdfImport.matches.length} {pdfImport.matches.length === 1 ? "designación detectada" : "designaciones detectadas"}</h3></div><span className="pdf-ready-icon"><Check /></span></div><div className="pdf-summary-grid"><div><strong>{pdfImport.matches.length}</strong><span>Partidos</span></div><div><strong>{pdfOfficials.length}</strong><span>Compañeros</span></div><div><strong>{pdfNewOfficials.length}</strong><span>Nuevos en Árbitros</span></div></div><div className="pdf-match-list">{pdfImport.matches.map((match) => { const savedRate = findSavedRate(data.rates, match.category, match.role); return <article className="pdf-match-card" key={`${match.matchNumber}-${match.date}-${match.time}`}><div className="pdf-match-date"><strong>{new Date(`${match.date}T12:00:00`).getDate()}</strong><span>{new Intl.DateTimeFormat("es-ES", { month: "short" }).format(new Date(`${match.date}T12:00:00`)).toUpperCase()}</span></div><div className="pdf-match-main"><div className="pdf-match-top"><span>PARTIDO {match.matchNumber}</span><small>{match.time}</small></div><h4>{match.home} <em>vs</em> {match.away}</h4><p>{match.category} · {match.role}</p><small>{match.officials.length} colegiados en la ficha</small></div><span className={`pdf-rate ${savedRate ? "found" : "pending"}`}>{savedRate ? `${money(savedRate.amount)} · tarifa encontrada` : "Tarifa pendiente"}</span></article>; })}</div><div className="pdf-contact-note"><Users /><div><strong>Agenda automática</strong><span>Al importar, se crearán los compañeros que todavía no existan con su nombre y teléfono. Los contactos ya guardados no se duplicarán.</span></div></div><div className="pdf-actions"><Button variant="outline" onClick={discardPdf}>Descartar</Button><Button variant="outline" onClick={() => addPdfDesignations("escolar")}>Añadir como escolares</Button><Button className="primary-btn" onClick={() => addPdfDesignations("regional")}>Añadir como regionales</Button></div></div>}<div className="info-strip"><ShieldCheck /><div><strong>Tu PDF permanece en este dispositivo</strong><span>Se analiza localmente y no se guarda ni se sube. Solo se sincronizan los partidos y contactos que confirmes.</span></div></div></section>}
 
-      {(view === "regionales" || view === "escolares") && <section className="content"><div className="page-heading"><div><p>{view === "escolares" ? "PARTIDOS ESCOLARES" : "PARTIDOS REGIONALES"}</p><h2>Temporada {data.settings.season}</h2></div><MatchDialog competition={activeCompetition} rates={data.rates} onAdd={(m) => setData((d) => ({ ...d, matches: [m, ...d.matches] }))} /></div><div className="panel table-wrap"><table><thead><tr><th>Fecha</th><th>Partido</th><th>Categoría / función</th><th>Lugar</th><th>Neto</th><th>Acciones</th></tr></thead><tbody>{filtered.length === 0 ? <tr><td colSpan={6} className="empty-table">Aún no hay partidos {view === "escolares" ? "escolares" : "regionales"}.</td></tr> : filtered.sort((a,b) => b.date.localeCompare(a.date)).map((m) => { const recordedVideo = findRecordedGameForMatch(m, recordedGames); return <tr key={m.id}><td><strong>{dateLabel(m.date)}</strong><small>{m.time}</small></td><td><strong>{m.home}</strong><small>vs {m.away}{m.matchNumber ? ` · Nº ${m.matchNumber}` : ""}</small></td><td><span className="pill">{m.category}</span><small>{m.role}</small></td><td><span>{m.venue}</span><small>{m.partners.join(", ") || "Sin compañeros"}</small></td><td><strong>{money(net(m))}</strong><small>{money(m.gross + m.diets)} bruto</small></td><td><div className="row-actions"><button onClick={() => googleCalendar(m)} aria-label="Añadir a Google Calendar" title="Añadir a Google Calendar"><CalendarDays /></button><EditMatchDialog match={m} rates={data.rates} onSave={(updated) => updateMatch(m.id, updated)} /><button disabled={!recordedVideo} onClick={() => { if (!recordedVideo) return; setSelectedGameId(recordedVideo.id); setView("grabados"); }} className={recordedVideo ? "selected" : ""} aria-label={recordedVideo ? "Abrir vídeo del partido" : "No hay vídeo para este partido"} title={recordedVideo ? "Vídeo detectado · abrir análisis" : "No hay ningún vídeo correspondiente"}><Video /></button><button onClick={() => setData((d) => ({ ...d, matches: d.matches.filter((x) => x.id !== m.id) }))} aria-label="Eliminar partido" title="Eliminar partido"><X /></button></div></td></tr>; })}</tbody></table></div></section>}
+      {(view === "regionales" || view === "escolares") && <section className="content"><div className="page-heading"><div><p>{view === "escolares" ? "PARTIDOS ESCOLARES" : "PARTIDOS REGIONALES"}</p><h2>Temporada {data.settings.season}</h2></div><MatchDialog competition={activeCompetition} rates={data.rates} expensePolicy={data.expensePolicy || DEFAULT_EXPENSE_POLICY} onAdd={(m) => setData((d) => ({ ...d, matches: [m, ...d.matches] }))} /></div><div className="panel table-wrap"><table><thead><tr><th>Fecha</th><th>Partido</th><th>Categoría / función</th><th>Lugar</th><th>Neto</th><th>Acciones</th></tr></thead><tbody>{filtered.length === 0 ? <tr><td colSpan={6} className="empty-table">Aún no hay partidos {view === "escolares" ? "escolares" : "regionales"}.</td></tr> : filtered.sort((a,b) => b.date.localeCompare(a.date)).map((m) => { const recordedVideo = findRecordedGameForMatch(m, recordedGames); return <tr key={m.id}><td><strong>{dateLabel(m.date)}</strong><small>{m.time}</small></td><td><strong>{m.home}</strong><small>vs {m.away}{m.matchNumber ? ` · Nº ${m.matchNumber}` : ""}</small></td><td><span className="pill">{m.category}</span>{m.friendly && <span className="friendly-badge">Amistoso · 50 %</span>}<small>{m.role}</small></td><td><span>{m.venue}</span><small>{m.partners.join(", ") || "Sin compañeros"}</small></td><td><strong>{money(net(m))}</strong><small>{money(grossWithExpenses(m))} bruto</small></td><td><div className="row-actions"><button onClick={() => googleCalendar(m)} aria-label="Añadir a Google Calendar" title="Añadir a Google Calendar"><CalendarDays /></button><EditMatchDialog match={m} rates={data.rates} expensePolicy={data.expensePolicy || DEFAULT_EXPENSE_POLICY} onSave={(updated) => updateMatch(m.id, updated)} /><button disabled={!recordedVideo} onClick={() => { if (!recordedVideo) return; setSelectedGameId(recordedVideo.id); setView("grabados"); }} className={recordedVideo ? "selected" : ""} aria-label={recordedVideo ? "Abrir vídeo del partido" : "No hay vídeo para este partido"} title={recordedVideo ? "Vídeo detectado · abrir análisis" : "No hay ningún vídeo correspondiente"}><Video /></button><button onClick={() => setData((d) => ({ ...d, matches: d.matches.filter((x) => x.id !== m.id) }))} aria-label="Eliminar partido" title="Eliminar partido"><X /></button></div></td></tr>; })}</tbody></table></div></section>}
 
       {view === "grabados" && <section className="content video-analysis-page"><div className="page-heading"><div><p>ANÁLISIS DE VÍDEO</p><h2>Partidos grabados</h2></div><VideoDialog matches={data.matches} onAdd={(game) => { setData((d) => ({ ...d, recordedGames: [...(d.recordedGames || []), game] })); setSelectedGameId(game.id); }} /></div>
         {recordedGames.length === 0 ? <div className="panel video-empty"><span><Video /></span><h3>Añade tu primer partido</h3><p>Pega un enlace de YouTube y podrás guardar acciones en el minuto y segundo exactos.</p><VideoDialog matches={data.matches} onAdd={(game) => { setData((d) => ({ ...d, recordedGames: [game] })); setSelectedGameId(game.id); }} /></div> : <div className="video-workspace">
@@ -908,19 +984,19 @@ export default function RefFlow() {
         </nav>
         {earningsPeriod === "general" ? <>
           <div className="kpi-grid"><article className="kpi primary"><div><span>ESTA SEMANA</span><strong>{money(weekTotal)}</strong><small>{matchCountLabel(weekMatches.length)} · Neto estimado</small></div><WalletCards /></article><article className="kpi"><div><span>ESTE MES</span><strong>{money(monthTotal)}</strong><small>{monthLabel}</small></div><BarChart3 /></article><article className="kpi"><div><span>TEMPORADA</span><strong>{money(total)}</strong><small>{data.matches.length} designaciones</small></div><Trophy /></article></div>
-          <div className="panel finance-list"><div className="panel-heading"><div><p>DESGLOSE GENERAL</p><h3>Ingresos por partido</h3></div></div>{data.matches.length === 0 ? <div className="finance-empty">Aún no hay ingresos registrados esta temporada.</div> : data.matches.map((m) => <div className="finance-row" key={m.id}><div><strong>{m.home} – {m.away}</strong><small>{dateLabel(m.date)} · {m.category}</small></div><span>{money(m.gross)} tarifa + {money(m.diets)} dietas</span><strong>{money(net(m))}</strong></div>)}</div>
+          <div className="panel finance-list"><div className="panel-heading"><div><p>DESGLOSE GENERAL</p><h3>Ingresos por partido</h3></div></div>{data.matches.length === 0 ? <div className="finance-empty">Aún no hay ingresos registrados esta temporada.</div> : data.matches.map((m) => <div className="finance-row" key={m.id}><div><strong>{m.home} – {m.away}</strong><small>{dateLabel(m.date)} · {m.category}</small></div><span>{financialBreakdown(m)}</span><strong>{money(net(m))}</strong></div>)}</div>
           <div className="earnings-split">{[
             { key: "escolares", label: "Escolares", matches: schoolMatches, total: schoolTotal },
             { key: "regionales", label: "Regionales", matches: regionalMatches, total: regionalTotal },
-          ].map((group) => <div className="panel finance-list" key={group.key}><div className="panel-heading"><div><p>GANANCIAS</p><h3>{group.label}</h3></div><div className="finance-heading-total"><strong>{money(group.total)}</strong><button onClick={() => setView(group.key as View)}>Ver partidos <ChevronRight /></button></div></div>{group.matches.length === 0 ? <div className="finance-empty">Aún no hay ingresos de partidos {group.label.toLowerCase()}.</div> : group.matches.map((m) => <div className="finance-row" key={m.id}><div><strong>{m.home} – {m.away}</strong><small>{dateLabel(m.date)} · {m.category}</small></div><span>{money(m.gross)} tarifa + {money(m.diets)} dietas</span><strong>{money(net(m))}</strong></div>)}</div>)}</div>
+          ].map((group) => <div className="panel finance-list" key={group.key}><div className="panel-heading"><div><p>GANANCIAS</p><h3>{group.label}</h3></div><div className="finance-heading-total"><strong>{money(group.total)}</strong><button onClick={() => setView(group.key as View)}>Ver partidos <ChevronRight /></button></div></div>{group.matches.length === 0 ? <div className="finance-empty">Aún no hay ingresos de partidos {group.label.toLowerCase()}.</div> : group.matches.map((m) => <div className="finance-row" key={m.id}><div><strong>{m.home} – {m.away}</strong><small>{dateLabel(m.date)} · {m.category}</small></div><span>{financialBreakdown(m)}</span><strong>{money(net(m))}</strong></div>)}</div>)}</div>
         </> : selectedEarningsMonth && <>
           <div className="month-heading"><div><p>RESUMEN MENSUAL</p><h3>{selectedEarningsMonth.label}</h3></div><span>{matchCountLabel(selectedMonthMatches.length)}</span></div>
           <div className="kpi-grid monthly-kpis"><article className="kpi primary"><div><span>NETO ESTIMADO</span><strong>{money(selectedEarningsMonth.total)}</strong><small>{matchCountLabel(selectedMonthMatches.length)}</small></div><WalletCards /></article><article className="kpi"><div><span>BRUTO + DIETAS</span><strong>{money(selectedEarningsMonth.gross)}</strong><small>Antes de retención</small></div><CircleEuro /></article><article className="kpi"><div><span>MEDIA POR PARTIDO</span><strong>{money(selectedMonthMatches.length ? selectedEarningsMonth.total / selectedMonthMatches.length : 0)}</strong><small>Neto estimado</small></div><BarChart3 /></article></div>
-          <div className="panel finance-list"><div className="panel-heading"><div><p>DESGLOSE DEL MES</p><h3>{selectedEarningsMonth.label}</h3></div><div className="finance-heading-total"><strong>{money(selectedEarningsMonth.total)}</strong><small>Neto total</small></div></div>{selectedMonthMatches.length === 0 ? <div className="finance-empty">No hay partidos registrados en {selectedEarningsMonth.label.toLowerCase()}.</div> : selectedMonthMatches.map((m) => <div className="finance-row" key={m.id}><div><strong>{m.home} – {m.away}</strong><small>{dateLabel(m.date)} · {m.category} · {m.role}</small></div><span>{money(m.gross)} tarifa + {money(m.diets)} dietas</span><strong>{money(net(m))}</strong></div>)}</div>
+          <div className="panel finance-list"><div className="panel-heading"><div><p>DESGLOSE DEL MES</p><h3>{selectedEarningsMonth.label}</h3></div><div className="finance-heading-total"><strong>{money(selectedEarningsMonth.total)}</strong><small>Neto total</small></div></div>{selectedMonthMatches.length === 0 ? <div className="finance-empty">No hay partidos registrados en {selectedEarningsMonth.label.toLowerCase()}.</div> : selectedMonthMatches.map((m) => <div className="finance-row" key={m.id}><div><strong>{m.home} – {m.away}</strong><small>{dateLabel(m.date)} · {m.category} · {m.role}</small></div><span>{financialBreakdown(m)}</span><strong>{money(net(m))}</strong></div>)}</div>
           <div className="earnings-split">{[
             { key: "escolares", label: "Escolares", matches: selectedMonthSchoolMatches },
             { key: "regionales", label: "Regionales", matches: selectedMonthRegionalMatches },
-          ].map((group) => { const groupTotal = group.matches.reduce((sum, match) => sum + net(match), 0); return <div className="panel finance-list" key={group.key}><div className="panel-heading"><div><p>{selectedEarningsMonth.shortLabel.toUpperCase()}</p><h3>{group.label}</h3></div><div className="finance-heading-total"><strong>{money(groupTotal)}</strong><button onClick={() => setView(group.key as View)}>Ver partidos <ChevronRight /></button></div></div>{group.matches.length === 0 ? <div className="finance-empty">Sin partidos {group.label.toLowerCase()} este mes.</div> : group.matches.map((m) => <div className="finance-row" key={m.id}><div><strong>{m.home} – {m.away}</strong><small>{dateLabel(m.date)} · {m.category}</small></div><span>{money(m.gross)} tarifa + {money(m.diets)} dietas</span><strong>{money(net(m))}</strong></div>)}</div>; })}</div>
+          ].map((group) => { const groupTotal = group.matches.reduce((sum, match) => sum + net(match), 0); return <div className="panel finance-list" key={group.key}><div className="panel-heading"><div><p>{selectedEarningsMonth.shortLabel.toUpperCase()}</p><h3>{group.label}</h3></div><div className="finance-heading-total"><strong>{money(groupTotal)}</strong><button onClick={() => setView(group.key as View)}>Ver partidos <ChevronRight /></button></div></div>{group.matches.length === 0 ? <div className="finance-empty">Sin partidos {group.label.toLowerCase()} este mes.</div> : group.matches.map((m) => <div className="finance-row" key={m.id}><div><strong>{m.home} – {m.away}</strong><small>{dateLabel(m.date)} · {m.category}</small></div><span>{financialBreakdown(m)}</span><strong>{money(net(m))}</strong></div>)}</div>; })}</div>
         </>}
       </section>}
 
@@ -955,6 +1031,7 @@ export default function RefFlow() {
             <div className="panel-heading"><div className="pdf-ready-icon"><Check /></div><div><h3>Vista previa · {shortSeasonName(ratePdfPreview.season)}</h3><p>{ratePdfFileName}</p></div></div>
             <div className="pdf-summary-grid"><div><strong>{ratePdfPreview.rows.length}</strong><span>Categorías admitidas</span></div><div><strong>{ratePdfPreview.rates.length}</strong><span>Tarifas con importe</span></div><div><strong>2 %</strong><span>Retención aplicada</span></div></div>
             <div className="rate-exclusions"><ShieldCheck /><div><strong>Exclusiones automáticas</strong><span>Se ignoran toda la sección FEB, Liga Provincial Guadalajara y cualquier trofeo.{ratePdfPreview.excludedCategories.length ? ` Detectadas en este PDF: ${ratePdfPreview.excludedCategories.join(", ")}.` : ""}</span></div></div>
+            {(ratePdfPreview.diets.length > 0 || ratePdfPreview.mileage.length > 0) && <div className="expense-policy-preview"><div><strong>Dietas detectadas</strong>{ratePdfPreview.diets.map((option) => <span key={option.id}>{option.label}: {money(option.amount)}</span>)}</div><div><strong>Kilometraje detectado</strong>{ratePdfPreview.mileage.map((option) => <span key={option.id}>{option.label}: {money(option.amount)}/km</span>)}</div></div>}
             <div className="rate-preview-table"><table><thead><tr><th>Categoría</th><th>Principal</th><th>Auxiliar</th><th>Anotador</th><th>Crono</th><th>Oper. RLL</th><th>Ayudante</th></tr></thead><tbody>{ratePdfPreview.rows.map((row) => <tr key={row.category}><td><strong>{row.category}</strong></td>{row.amounts.map((amount, index) => <td key={`${row.category}-${index}`}>{amount === null ? "—" : money(amount)}</td>)}</tr>)}</tbody></table></div>
             <div className="pdf-actions"><Button type="button" variant="outline" onClick={discardRatePdf}>Cancelar</Button><Button type="button" className="primary-btn" onClick={applyRatePdf}><Check /> Actualizar tarifas oficiales</Button></div>
           </div>}
