@@ -46,3 +46,68 @@
 @media(max-width:560px){.pdf-summary-grid{grid-template-columns:1fr;padding:14px}.pdf-match-list{padding:14px}.pdf-match-card{grid-template-columns:44px minmax(0,1fr);align-items:start}.pdf-match-date{width:42px;height:48px}.pdf-rate{grid-column:2;justify-self:start}.pdf-contact-note{margin:0 14px 14px;align-items:flex-start}.pdf-actions{padding:0 14px 14px}}
 
 .row-actions button:disabled{cursor:default;opacity:.38;background:#fff;color:#8a96a7;border-color:#dfe6ef}
+
+/* Keep long forms usable on every viewport, including short mobile screens. */
+.dialog-card{
+  width:min(650px,calc(100vw - 24px));
+  max-width:calc(100vw - 24px)!important;
+  max-height:calc(100vh - 24px);
+  max-height:calc(100dvh - 24px);
+  grid-template-rows:auto minmax(0,1fr) auto;
+  overflow:hidden;
+  overscroll-behavior:contain;
+}
+.dialog-card>.form-grid,.dialog-card>.video-form{
+  min-width:0;
+  min-height:0;
+  overflow-x:hidden;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  padding:2px 5px 2px 2px;
+  scrollbar-gutter:stable;
+}
+.form-grid>*,.expense-submenu,.expense-fields>*{min-width:0}
+.expense-fields select,.expense-fields input{width:100%;min-width:0}
+
+@media(max-width:760px){
+  .dialog-card{
+    width:calc(100vw - 16px);
+    max-width:calc(100vw - 16px)!important;
+    height:calc(100vh - 16px);
+    height:calc(100dvh - 16px);
+    max-height:calc(100vh - 16px);
+    max-height:calc(100dvh - 16px);
+    padding:18px;
+    gap:12px;
+  }
+  .dialog-card>.form-grid,.dialog-card>.video-form{padding-right:3px;scrollbar-gutter:auto}
+  .dialog-card [data-slot="dialog-footer"]{padding-top:12px;border-top:1px solid #e7ecf3}
+}
+
+@media(max-width:420px){
+  .dialog-card{
+    width:calc(100vw - 8px);
+    max-width:calc(100vw - 8px)!important;
+    height:calc(100vh - 8px);
+    height:calc(100dvh - 8px);
+    max-height:calc(100vh - 8px);
+    max-height:calc(100dvh - 8px);
+    padding:14px;
+    gap:10px;
+  }
+  .dialog-card [data-slot="dialog-close"]{top:12px;right:12px}
+  .dialog-card [data-slot="dialog-header"]{padding-right:24px;gap:5px}
+  .dialog-card [data-slot="dialog-footer"]{gap:8px;padding-top:10px}
+  .dialog-card [data-slot="dialog-footer"] button{width:100%;min-height:42px}
+  .form-grid,.video-form{gap:11px}
+  .expense-fields{padding:12px;gap:11px}
+  .friendly-toggle{padding:12px 13px}
+}
+
+@media(max-height:650px){
+  .dialog-card{padding-top:14px;padding-bottom:14px;gap:9px}
+  .dialog-card [data-slot="dialog-header"]{gap:4px}
+  .dialog-card [data-slot="dialog-footer"]{padding-top:8px}
+  .form-grid,.video-form{gap:10px}
+  .expense-fields{padding:11px;gap:10px}
+}
