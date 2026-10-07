@@ -370,7 +370,7 @@ function MatchDialog({ competition, rates, expensePolicy, onAdd }: { competition
     const match: Match = { id: makeId(), competition, date: form.date, time: form.time, home: form.home.trim(), away: form.away.trim(), category: form.category.trim() || "Sin categoría", role: form.role.trim() || "Árbitro", venue: form.venue.trim(), gross: baseTariff, diets: selectedDiet?.amount || 0, dietOptionId: selectedDiet?.id, dietLabel: selectedDiet?.label, mileageKm: selectedMileage ? Math.max(0, Number(form.mileageKm) || 0) : 0, mileageRate: selectedMileage?.amount || 0, mileageOptionId: selectedMileage?.id, mileageLabel: selectedMileage?.label, friendly: competition === "escolar" && form.friendly, retention: RETENTION_RATE, partners: [], video: false, status: "confirmado" };
     onAdd(match); setRateMessage(""); setOpen(false);
   };
-  return <Dialog open={open} onOpenChange={changeOpen}><DialogTrigger asChild><Button className="primary-btn"><Plus /> Nuevo partido</Button></DialogTrigger><DialogContent className="dialog-card"><DialogHeader><DialogTitle>Añadir partido</DialogTitle><DialogDescription>Regístralo manualmente si todavía no tienes el PDF.</DialogDescription></DialogHeader><div className="form-grid">
+  return <Dialog open={open} onOpenChange={changeOpen}><DialogTrigger asChild><Button className="primary-btn"><Plus /> Nuevo partido</Button></DialogTrigger><DialogContent className="dialog-card"><DialogHeader><DialogTitle>Añadir partido</DialogTitle><DialogDescription>Regístralo manualmente si todavía no tienes el PDF.</DialogDescription></DialogHeader><div className="dialog-scroll"><div className="form-grid">
     <label>Fecha<Input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} /></label><label>Hora<Input type="time" value={form.time} onChange={(e) => set("time", e.target.value)} /></label>
     <label>Equipo local<Input placeholder="Equipo local" value={form.home} onChange={(e) => set("home", e.target.value)} /></label><label>Equipo visitante<Input placeholder="Equipo visitante" value={form.away} onChange={(e) => set("away", e.target.value)} /></label>
     <label>Categoría<Input placeholder="Junior Autonómico" value={form.category} onChange={(e) => set("category", e.target.value)} /></label><label>Función<Input value={form.role} onChange={(e) => set("role", e.target.value)} /></label>
@@ -383,7 +383,7 @@ function MatchDialog({ competition, rates, expensePolicy, onAdd }: { competition
       <label>Kilómetros totales<Input type="number" inputMode="numeric" min="0" step="1" value={form.mileageKm} onChange={(event) => setMileageKm(event.target.value)} placeholder="Escribe los km" /><small>Si escribes kilómetros sin elegir modalidad, se aplicará Individual.</small></label>
       <div className="expense-preview"><span>Tarifa computada <strong>{money(previewTariff)}</strong></span><span>Gastos <strong>{money((selectedDiet?.amount || 0) + previewMileage)}</strong></span><span>Neto estimado <strong>{money(previewNet)}</strong></span></div>
     </div></details>
-  </div><DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button><Button className="primary-btn" onClick={submit}>Guardar partido</Button></DialogFooter></DialogContent></Dialog>;
+  </div></div><DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button><Button className="primary-btn" onClick={submit}>Guardar partido</Button></DialogFooter></DialogContent></Dialog>;
 }
 
 function EditMatchDialog({ match, rates, expensePolicy, onSave }: { match: Match; rates: Rate[]; expensePolicy: ExpensePolicy; onSave: (match: Match) => void }) {
@@ -432,7 +432,7 @@ function EditMatchDialog({ match, rates, expensePolicy, onSave }: { match: Match
     onSave(updatedMatch);
     setOpen(false);
   };
-  return <Dialog open={open} onOpenChange={changeOpen}><DialogTrigger asChild><button aria-label={`Editar ${match.home} contra ${match.away}`} title="Editar partido"><Pencil /></button></DialogTrigger><DialogContent className="dialog-card"><DialogHeader><DialogTitle>Editar partido</DialogTitle><DialogDescription>Actualiza la designación y añade los compañeros separados por comas.</DialogDescription></DialogHeader><div className="form-grid">
+  return <Dialog open={open} onOpenChange={changeOpen}><DialogTrigger asChild><button aria-label={`Editar ${match.home} contra ${match.away}`} title="Editar partido"><Pencil /></button></DialogTrigger><DialogContent className="dialog-card"><DialogHeader><DialogTitle>Editar partido</DialogTitle><DialogDescription>Actualiza la designación y añade los compañeros separados por comas.</DialogDescription></DialogHeader><div className="dialog-scroll"><div className="form-grid">
     <label>Fecha<Input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} /></label><label>Hora<Input type="time" value={form.time} onChange={(e) => set("time", e.target.value)} /></label>
     <label>Equipo local<Input value={form.home} onChange={(e) => set("home", e.target.value)} /></label><label>Equipo visitante<Input value={form.away} onChange={(e) => set("away", e.target.value)} /></label>
     <label>Categoría<Input value={form.category} onChange={(e) => set("category", e.target.value)} /></label><label>Función<Input value={form.role} onChange={(e) => set("role", e.target.value)} /></label>
@@ -447,7 +447,7 @@ function EditMatchDialog({ match, rates, expensePolicy, onSave }: { match: Match
       <div className="expense-preview"><span>Tarifa computada <strong>{money(previewTariff)}</strong></span><span>Gastos <strong>{money((selectedDiet?.amount || 0) + previewMileage)}</strong></span><span>Neto estimado <strong>{money(previewNet)}</strong></span></div>
     </div></details>
     <label className="wide">Compañeros · separados por comas<Input value={form.partners} onChange={(e) => set("partners", e.target.value)} placeholder="Ana López, Carlos Ruiz" /></label>
-  </div><DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button><Button className="primary-btn" onClick={submit}>Guardar cambios</Button></DialogFooter></DialogContent></Dialog>;
+  </div></div><DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button><Button className="primary-btn" onClick={submit}>Guardar cambios</Button></DialogFooter></DialogContent></Dialog>;
 }
 
 function VideoDialog({ matches, onAdd }: { matches: Match[]; onAdd: (game: RecordedGame) => void }) {
