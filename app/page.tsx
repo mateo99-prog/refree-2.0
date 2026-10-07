@@ -11,6 +11,8 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { parseFbclmDesignationPages } from "@/lib/fbclm-pdf";
 import type { ParsedDesignationPdf, PdfOfficial, PdfTextItem } from "@/lib/fbclm-pdf";
+import { parseFbclmRatePages } from "@/lib/fbclm-rates";
+import type { ParsedRateSheet } from "@/lib/fbclm-rates";
 import { supabase } from "@/lib/supabase";
 import { findMatchForVideoTitle, findRecordedGameForMatch } from "@/lib/video-match";
 
@@ -22,8 +24,9 @@ type Contact = { id: string; name: string; phone: string; role: string; licenseI
 type VideoAnnotation = { id: string; seconds: number; category: string; label: string; note: string; createdAt: string };
 type RecordedGame = { id: string; title: string; youtubeUrl: string; youtubeId: string; matchId?: string; createdAt: string; annotations: VideoAnnotation[] };
 type SeasonStatus = "open" | "closed";
-type SeasonArchive = { id: string; name: string; status: SeasonStatus; matches: Match[]; rates: Rate[]; contacts: Contact[]; recordedGames: RecordedGame[]; earningsGoal: number; closedAt?: string };
-type AppData = { dataVersion: number; activeSeasonId: string; seasonStatus: SeasonStatus; seasonArchives: SeasonArchive[]; matches: Match[]; rates: Rate[]; contacts: Contact[]; recordedGames: RecordedGame[]; settings: { name: string; season: string; earningsGoal: number; username: string; profileImage: string } };
+type RateSheetMeta = { season: string; fileName: string; importedAt: string; source: "included" | "pdf" };
+type SeasonArchive = { id: string; name: string; status: SeasonStatus; matches: Match[]; rates: Rate[]; rateSheet?: RateSheetMeta; contacts: Contact[]; recordedGames: RecordedGame[]; earningsGoal: number; closedAt?: string };
+type AppData = { dataVersion: number; activeSeasonId: string; seasonStatus: SeasonStatus; seasonArchives: SeasonArchive[]; matches: Match[]; rates: Rate[]; rateSheet?: RateSheetMeta; contacts: Contact[]; recordedGames: RecordedGame[]; settings: { name: string; season: string; earningsGoal: number; username: string; profileImage: string } };
 type Viewer = { userId: string; displayName: string; email: string; fullName: string | null };
 
 const RETENTION_RATE = 2;
@@ -76,16 +79,19 @@ const OFFICIAL_RATES_2026_27: Rate[] = OFFICIAL_RATE_TABLE.flatMap(([category, a
     locked: true,
   }])
 );
+const DEFAULT_RATE_SHEET: RateSheetMeta = { season: "2026/27", fileName: "Tarifas oficiales incluidas", importedAt: "", source: "included" };
 const mergeOfficialRates = (rates: Rate[] = []): Rate[] => {
-  const fixedKeys = new Set(OFFICIAL_RATES_2026_27.map(fixedRateKey));
+  const importedOfficialRates = rates.filter((rate) => rate.id.startsWith("official-imported-") && rate.locked);
+  const officialRates = importedOfficialRates.length > 0 ? importedOfficialRates : OFFICIAL_RATES_2026_27;
+  const fixedKeys = new Set(officialRates.map(fixedRateKey));
   const customRates = rates
-    .filter((rate) => !rate.id.startsWith("official-2026-27-") && !fixedKeys.has(fixedRateKey(rate)))
+    .filter((rate) => !rate.id.startsWith("official-") && !fixedKeys.has(fixedRateKey(rate)))
     .map((rate) => ({ ...rate, retention: RETENTION_RATE, locked: false }));
-  return [...OFFICIAL_RATES_2026_27.map((rate) => ({ ...rate })), ...customRates];
+  return [...officialRates.map((rate) => ({ ...rate, retention: RETENTION_RATE, locked: true })), ...customRates];
 };
 
 const sampleData: AppData = {
-  dataVersion: 7,
+  dataVersion: 8,
   activeSeasonId: "season-2026-27",
   seasonStatus: "open",
   seasonArchives: [],
@@ -95,17 +101,18 @@ const sampleData: AppData = {
     { id: "p3", competition: "regional", date: "2026-09-12", time: "17:00", home: "CB Mora", away: "Basket Azuqueca", category: "Cadete Regional", role: "Árbitro", venue: "Pabellón Municipal de Mora", gross: 27.5, diets: 6, retention: 2, partners: ["Álvaro Martín"], video: false, status: "confirmado" },
   ],
   rates: mergeOfficialRates(),
+  rateSheet: DEFAULT_RATE_SHEET,
   contacts: [],
   recordedGames: [],
   settings: { name: "Árbitro", season: "2026/27", earningsGoal: 250, username: "", profileImage: "" },
 };
-const emptyData = (name: string): AppData => ({ dataVersion: 7, activeSeasonId: "season-2026-27", seasonStatus: "open", seasonArchives: [], matches: [], rates: mergeOfficialRates(), contacts: [], recordedGames: [], settings: { name, season: "2026/27", earningsGoal: 250, username: "", profileImage: "" } });
+const emptyData = (name: string): AppData => ({ dataVersion: 8, activeSeasonId: "season-2026-27", seasonStatus: "open", seasonArchives: [], matches: [], rates: mergeOfficialRates(), rateSheet: DEFAULT_RATE_SHEET, contacts: [], recordedGames: [], settings: { name, season: "2026/27", earningsGoal: 250, username: "", profileImage: "" } });
 
 const nav: { id: View; label: string; icon: LucideIcon }[] = [
   { id: "inicio", label: "Inicio", icon: Home }, { id: "importar", label: "Importar", icon: FileUp }, { id: "regionales", label: "Regionales", icon: CalendarDays }, { id: "escolares", label: "Partidos escolares", icon: Trophy }, { id: "grabados", label: "Partidos grabados", icon: Video },
   { id: "ganancias", label: "Ganancias", icon: BarChart3 }, { id: "arbitros", label: "Árbitros", icon: Users }, { id: "tarifas", label: "Tarifas", icon: CircleEuro }, { id: "ajustes", label: "Ajustes", icon: Settings },
 ];
-const CURRENT_DATA_VERSION = 7;
+const CURRENT_DATA_VERSION = 8;
 const SAMPLE_CONTACT_IDS = new Set(["a1", "a2"]);
 const seasonStartYearFromName = (value: string) => {
   const raw = value.match(/(\d{2,4})\s*\/\s*(\d{2,4})/);
@@ -126,6 +133,7 @@ const normalizeSeasonArchive = (season: SeasonArchive): SeasonArchive => ({
   status: season.status === "open" ? "open" : "closed",
   matches: (season.matches || []).map((match) => ({ ...match, competition: isSchoolCategory(match.category) || match.competition === "escolar" ? "escolar" : "regional", retention: RETENTION_RATE })),
   rates: (season.rates || []).map((rate) => ({ ...rate, retention: RETENTION_RATE })),
+  rateSheet: season.rateSheet,
   contacts: season.contacts || [],
   recordedGames: season.recordedGames || [],
   earningsGoal: Number.isFinite(Number(season.earningsGoal)) && Number(season.earningsGoal) >= 0 ? Number(season.earningsGoal) : 250,
@@ -141,6 +149,7 @@ const normalizeData = (state: AppData): AppData => {
     seasonArchives: ((state.dataVersion || 0) >= 5 ? state.seasonArchives || [] : []).map(normalizeSeasonArchive),
     matches: (state.matches || []).map((match) => ({ ...match, competition: isSchoolCategory(match.category) || match.competition === "escolar" ? "escolar" : "regional", retention: RETENTION_RATE })),
     rates: mergeOfficialRates(state.rates || []),
+    rateSheet: state.rateSheet || DEFAULT_RATE_SHEET,
     contacts: removeSampleContacts ? (state.contacts || []).filter((contact) => !SAMPLE_CONTACT_IDS.has(contact.id)) : (state.contacts || []),
     settings: {
       name: state.settings?.name || "Árbitro",
@@ -236,6 +245,20 @@ const resizeProfileImage = (file: File) => new Promise<string>((resolve, reject)
   };
   reader.readAsDataURL(file);
 });
+const extractPdfTextPages = async (file: File) => {
+  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/legacy/build/pdf.worker.min.mjs", import.meta.url).pathname;
+  const pdf = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
+  const pages: PdfTextItem[][] = [];
+  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
+    const content = await (await pdf.getPage(pageNumber)).getTextContent();
+    pages.push(content.items.flatMap((item) => {
+      if (!("str" in item) || !item.str.trim()) return [];
+      return [{ page: pageNumber, x: item.transform[4], y: item.transform[5], text: item.str }];
+    }));
+  }
+  return pages;
+};
 const findSavedRate = (rates: Rate[], category: string, role: string) => {
   const normalizedCategory = canonicalCategory(category);
   const normalizedRole = normalizeRateField(role);
@@ -272,6 +295,7 @@ const seasonSnapshot = (state: AppData, status: SeasonStatus = state.seasonStatu
   status,
   matches: state.matches,
   rates: state.rates,
+  rateSheet: state.rateSheet,
   contacts: state.contacts,
   recordedGames: state.recordedGames || [],
   earningsGoal: state.settings.earningsGoal,
@@ -381,13 +405,14 @@ type YouTubeWindow = Window & { YT?: { Player: new (element: HTMLElement, option
 export default function RefFlow() {
   const [view, setView] = useState<View>("inicio"); const [data, setData] = useState<AppData>(sampleData); const [loaded, setLoaded] = useState(false);
   const [earningsPeriod, setEarningsPeriod] = useState("general");
-  const [settingsTab, setSettingsTab] = useState<"profile" | "seasons">("profile"); const [closeSeasonOpen, setCloseSeasonOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<"profile" | "seasons" | "rates">("profile"); const [closeSeasonOpen, setCloseSeasonOpen] = useState(false);
   const [viewer, setViewer] = useState<Viewer | null>(null); const [authState, setAuthState] = useState<"loading" | "authenticated" | "anonymous">("loading");
   const [legacyMigrationNeeded, setLegacyMigrationNeeded] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "signup">("login"); const [authEmail, setAuthEmail] = useState(""); const [authPassword, setAuthPassword] = useState(""); const [authName, setAuthName] = useState(""); const [authBusy, setAuthBusy] = useState(false); const [authMessage, setAuthMessage] = useState("");
   const [usernameDraft, setUsernameDraft] = useState(""); const [profileMessage, setProfileMessage] = useState(""); const [profileBusy, setProfileBusy] = useState(false); const profileFileRef = useRef<HTMLInputElement>(null);
   const [saveState, setSaveState] = useState<"guardando" | "guardado" | "error">("guardando"); const [menuOpen, setMenuOpen] = useState(false); const [search, setSearch] = useState("");
   const [pdfState, setPdfState] = useState<"idle" | "reading" | "ready" | "error">("idle"); const [pdfImport, setPdfImport] = useState<ParsedDesignationPdf | null>(null); const [pdfFileName, setPdfFileName] = useState(""); const [pdfError, setPdfError] = useState(""); const [notice, setNotice] = useState(""); const fileRef = useRef<HTMLInputElement>(null);
+  const [ratePdfState, setRatePdfState] = useState<"idle" | "reading" | "ready" | "error">("idle"); const [ratePdfPreview, setRatePdfPreview] = useState<ParsedRateSheet | null>(null); const [ratePdfFileName, setRatePdfFileName] = useState(""); const [ratePdfError, setRatePdfError] = useState(""); const rateFileRef = useRef<HTMLInputElement>(null);
   const [selectedGameId, setSelectedGameId] = useState(""); const [manualMinute, setManualMinute] = useState(0); const [manualSecond, setManualSecond] = useState(0); const [annotationNote, setAnnotationNote] = useState(""); const [playerReady, setPlayerReady] = useState(false); const [analysisFullscreen, setAnalysisFullscreen] = useState(false);
   const playerMountRef = useRef<HTMLDivElement>(null); const playerRef = useRef<YouTubePlayer | null>(null); const analysisStageRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -580,17 +605,7 @@ export default function RefFlow() {
     if (file.size > 20 * 1024 * 1024) { setPdfError("El PDF supera el límite de 20 MB."); setPdfState("error"); return; }
     setPdfState("reading"); setPdfImport(null); setPdfFileName(file.name); setPdfError("");
     try {
-      const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
-      pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/legacy/build/pdf.worker.min.mjs", import.meta.url).pathname;
-      const pdf = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
-      const pages: PdfTextItem[][] = [];
-      for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
-        const content = await (await pdf.getPage(pageNumber)).getTextContent();
-        pages.push(content.items.flatMap((item) => {
-          if (!("str" in item) || !item.str.trim()) return [];
-          return [{ page: pageNumber, x: item.transform[4], y: item.transform[5], text: item.str }];
-        }));
-      }
+      const pages = await extractPdfTextPages(file);
       const parsed = parseFbclmDesignationPages(pages);
       if (parsed.matches.length === 0) throw new Error("FORMATO_NO_RECONOCIDO");
       setPdfImport(parsed); setPdfState("ready");
@@ -627,6 +642,49 @@ export default function RefFlow() {
   const discardPdf = () => {
     setPdfState("idle"); setPdfImport(null); setPdfFileName(""); setPdfError("");
     if (fileRef.current) fileRef.current.value = "";
+  };
+
+  const analyzeRatePdf = async (file?: File) => {
+    if (!file) return;
+    const looksLikePdf = file.type === "application/pdf" || file.name.toLocaleLowerCase("es-ES").endsWith(".pdf");
+    if (!looksLikePdf) { setRatePdfError("El archivo seleccionado no es un PDF."); setRatePdfState("error"); return; }
+    if (file.size > 20 * 1024 * 1024) { setRatePdfError("El PDF supera el límite de 20 MB."); setRatePdfState("error"); return; }
+    setRatePdfState("reading"); setRatePdfPreview(null); setRatePdfFileName(file.name); setRatePdfError("");
+    try {
+      const parsed = parseFbclmRatePages(await extractPdfTextPages(file));
+      setRatePdfPreview(parsed); setRatePdfState("ready");
+    } catch (error) {
+      console.error("[RefFlow PDF] No se pudo analizar la tabla de tarifas", error);
+      setRatePdfPreview(null);
+      setRatePdfError(error instanceof Error && error.message === "FORMATO_TARIFAS_NO_RECONOCIDO" ? "No se ha encontrado una tabla de tarifas F.B.C.L.M. válida con su temporada y sus seis columnas de funciones." : "No se pudo abrir el lector de PDF. Recarga la página e inténtalo otra vez.");
+      setRatePdfState("error");
+    }
+  };
+  const discardRatePdf = () => {
+    setRatePdfState("idle"); setRatePdfPreview(null); setRatePdfFileName(""); setRatePdfError("");
+    if (rateFileRef.current) rateFileRef.current.value = "";
+  };
+  const applyRatePdf = () => {
+    if (!ratePdfPreview) return;
+    const seasonKey = ratePdfPreview.season.replace(/\D/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+    const importedRates: Rate[] = ratePdfPreview.rates.map((rate, index) => ({
+      ...rate,
+      id: `official-imported-${seasonKey}-${index}`,
+      retention: RETENTION_RATE,
+      locked: true,
+    }));
+    const importedKeys = new Set(importedRates.map(fixedRateKey));
+    setData((current) => {
+      const customRates = current.rates.filter((rate) => !rate.id.startsWith("official-") && !importedKeys.has(fixedRateKey(rate)));
+      return {
+        ...current,
+        dataVersion: CURRENT_DATA_VERSION,
+        rates: mergeOfficialRates([...importedRates, ...customRates]),
+        rateSheet: { season: ratePdfPreview.season, fileName: ratePdfFileName, importedAt: new Date().toISOString(), source: "pdf" },
+      };
+    });
+    setNotice(`${importedRates.length} tarifas oficiales de ${ratePdfPreview.season} actualizadas con retención fija del 2 %. FEB, Liga Provincial Guadalajara y trofeos se han omitido.`);
+    discardRatePdf();
   };
 
   const exportExcel = async () => {
@@ -724,6 +782,7 @@ export default function RefFlow() {
         seasonStatus: target.status,
         matches: target.matches,
         rates: target.rates,
+        rateSheet: target.rateSheet || (target.rates.some((rate) => rate.id.startsWith("official-imported-")) ? current.rateSheet : DEFAULT_RATE_SHEET),
         contacts: target.contacts,
         recordedGames: target.recordedGames,
         settings: { ...current.settings, season: target.name, earningsGoal: target.earningsGoal },
@@ -867,10 +926,10 @@ export default function RefFlow() {
 
       {view === "arbitros" && <section className="content"><div className="page-heading"><div><p>AGENDA</p><h2>Compañeros</h2></div><Button className="primary-btn" onClick={() => { const name = prompt("Nombre del árbitro"); if (name) setData((d) => ({ ...d, contacts: [...d.contacts, { id: makeId(), name, phone: "", role: "Árbitro" }] })); }}><Plus /> Añadir árbitro</Button></div>{data.contacts.length === 0 ? <div className="panel contacts-empty"><Users /><h3>Aún no hay compañeros</h3><p>Los árbitros y oficiales aparecerán aquí automáticamente cuando importes una designación.</p></div> : <div className="contact-grid">{data.contacts.map((c) => <article className="contact-card" key={c.id}><span className="avatar">{c.name.split(" ").map((x) => x[0]).slice(0,2).join("")}</span><div><h3>{c.name}</h3><p>{c.role}{c.city ? ` · ${c.city}` : ""}</p><span>{c.phone || "Teléfono pendiente"}</span></div><div className="contact-actions"><button onClick={() => { const phone = prompt("Número de teléfono", c.phone); if (phone !== null) setData((d) => ({ ...d, contacts: d.contacts.map((x) => x.id === c.id ? { ...x, phone } : x) })); }} aria-label={`Editar teléfono de ${c.name}`}><Pencil /></button><button disabled={!c.phone} onClick={() => window.open(`https://wa.me/34${c.phone.replace(/\D/g, "")}`, "_blank", "noopener,noreferrer")}><MessageCircle /> WhatsApp</button></div></article>)}</div>}</section>}
 
-      {view === "tarifas" && <section className="content"><div className="page-heading"><div><p>TARIFAS</p><h2>Temporada {data.settings.season}</h2></div><Button className="primary-btn" onClick={() => setData((d) => ({ ...d, rates: [...d.rates, { id: makeId(), category: "Nueva categoría", role: "Árbitro", amount: 0, retention: RETENTION_RATE }] }))}><Plus /> Nueva tarifa</Button></div><div className="panel table-wrap"><table><thead><tr><th>Competición</th><th>Función</th><th>Tarifa</th><th>Retención</th><th>Neto</th><th></th></tr></thead><tbody>{data.rates.map((r) => <tr key={r.id}><td><Input value={r.category} readOnly={Boolean(r.locked)} onChange={(e) => setData((d) => ({ ...d, rates: d.rates.map((x) => x.id === r.id ? { ...x, category: e.target.value } : x) }))} /></td><td><Input value={r.role} readOnly={Boolean(r.locked)} onChange={(e) => setData((d) => ({ ...d, rates: d.rates.map((x) => x.id === r.id ? { ...x, role: e.target.value } : x) }))} /></td><td><Input type="number" step="0.01" value={r.amount} readOnly={Boolean(r.locked)} onChange={(e) => setData((d) => ({ ...d, rates: d.rates.map((x) => x.id === r.id ? { ...x, amount: Number(e.target.value) } : x) }))} /></td><td><Input type="number" value={RETENTION_RATE} readOnly aria-label="Retención fija del 2 por ciento" /></td><td><strong>{money(r.amount * (1 - RETENTION_RATE / 100))}</strong></td><td>{r.locked ? <small title="Tarifa oficial fija de la temporada 2026/27">Oficial 26/27</small> : <button className="icon-delete" aria-label="Eliminar tarifa" onClick={() => setData((d) => ({ ...d, rates: d.rates.filter((x) => x.id !== r.id) }))}><X /></button>}</td></tr>)}</tbody></table></div></section>}
+      {view === "tarifas" && <section className="content"><div className="page-heading"><div><p>TARIFAS</p><h2>Temporada {data.settings.season}</h2></div><Button className="primary-btn" onClick={() => setData((d) => ({ ...d, rates: [...d.rates, { id: makeId(), category: "Nueva categoría", role: "Árbitro", amount: 0, retention: RETENTION_RATE }] }))}><Plus /> Nueva tarifa</Button></div><div className="panel table-wrap"><table><thead><tr><th>Competición</th><th>Función</th><th>Tarifa</th><th>Retención</th><th>Neto</th><th></th></tr></thead><tbody>{data.rates.map((r) => <tr key={r.id}><td><Input value={r.category} readOnly={Boolean(r.locked)} onChange={(e) => setData((d) => ({ ...d, rates: d.rates.map((x) => x.id === r.id ? { ...x, category: e.target.value } : x) }))} /></td><td><Input value={r.role} readOnly={Boolean(r.locked)} onChange={(e) => setData((d) => ({ ...d, rates: d.rates.map((x) => x.id === r.id ? { ...x, role: e.target.value } : x) }))} /></td><td><Input type="number" step="0.01" value={r.amount} readOnly={Boolean(r.locked)} onChange={(e) => setData((d) => ({ ...d, rates: d.rates.map((x) => x.id === r.id ? { ...x, amount: Number(e.target.value) } : x) }))} /></td><td><Input type="number" value={RETENTION_RATE} readOnly aria-label="Retención fija del 2 por ciento" /></td><td><strong>{money(r.amount * (1 - RETENTION_RATE / 100))}</strong></td><td>{r.locked ? <small title={`Tarifa oficial fija de la temporada ${data.rateSheet?.season || "2026/27"}`}>Oficial {shortSeasonName(data.rateSheet?.season || "2026/27")}</small> : <button className="icon-delete" aria-label="Eliminar tarifa" onClick={() => setData((d) => ({ ...d, rates: d.rates.filter((x) => x.id !== r.id) }))}><X /></button>}</td></tr>)}</tbody></table></div></section>}
 
-      {view === "ajustes" && <section className="content narrow"><div className="section-intro"><p>AJUSTES</p><h2>Personaliza RefFlow</h2><span>Configura tu perfil y organiza el historial de temporadas.</span></div>
-        <nav className="settings-tabs" role="tablist" aria-label="Secciones de ajustes"><button type="button" role="tab" aria-selected={settingsTab === "profile"} className={settingsTab === "profile" ? "active" : ""} onClick={() => setSettingsTab("profile")}><Settings /> Perfil y cuenta</button><button type="button" role="tab" aria-selected={settingsTab === "seasons"} className={settingsTab === "seasons" ? "active" : ""} onClick={() => setSettingsTab("seasons")}><Trophy /> Temporadas</button></nav>
+      {view === "ajustes" && <section className="content narrow"><div className="section-intro"><p>AJUSTES</p><h2>Personaliza RefFlow</h2><span>Configura tu perfil, las temporadas y las tarifas oficiales.</span></div>
+        <nav className="settings-tabs" role="tablist" aria-label="Secciones de ajustes"><button type="button" role="tab" aria-selected={settingsTab === "profile"} className={settingsTab === "profile" ? "active" : ""} onClick={() => setSettingsTab("profile")}><Settings /> Perfil y cuenta</button><button type="button" role="tab" aria-selected={settingsTab === "seasons"} className={settingsTab === "seasons" ? "active" : ""} onClick={() => setSettingsTab("seasons")}><Trophy /> Temporadas</button><button type="button" role="tab" aria-selected={settingsTab === "rates"} className={settingsTab === "rates" ? "active" : ""} onClick={() => setSettingsTab("rates")}><FileText /> Tarifas PDF</button></nav>
         {settingsTab === "profile" ? <div className="panel settings-form">
           <div className="settings-profile wide"><span className="settings-avatar">{data.settings.profileImage ? <img src={data.settings.profileImage} alt="Foto de perfil" /> : initials}</span><div><strong>Foto de perfil</strong><span>Se recorta automáticamente y solo se guarda en tu cuenta.</span><div className="settings-photo-actions"><input ref={profileFileRef} hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => void changeProfileImage(event.target.files?.[0])} /><Button type="button" variant="outline" disabled={profileBusy} onClick={() => profileFileRef.current?.click()}><Camera /> {data.settings.profileImage ? "Cambiar foto" : "Añadir foto"}</Button>{data.settings.profileImage && <button type="button" className="text-action" onClick={() => { setData((current) => ({ ...current, settings: { ...current.settings, profileImage: "" } })); setProfileMessage("Foto eliminada."); }}>Eliminar</button>}</div></div></div>
           <label>Nombre tal como aparece en las designaciones<Input value={data.settings.name} onChange={(e) => setData((d) => ({ ...d, settings: { ...d.settings, name: e.target.value } }))} /></label>
@@ -878,10 +937,28 @@ export default function RefFlow() {
           <label>Nombre de usuario<div className="username-control"><Input value={usernameDraft} onChange={(e) => { setUsernameDraft(e.target.value); setProfileMessage(""); }} placeholder="mateo.garcia" autoComplete="username" /><Button type="button" disabled={profileBusy} onClick={() => void saveUsername()}>{profileBusy ? "Guardando…" : "Guardar usuario"}</Button></div><small>De 3 a 24 caracteres, sin espacios. Podrás iniciar sesión con este nombre o con tu correo.</small></label>
           {profileMessage && <p className="settings-message wide">{profileMessage}</p>}
           <div className="setting-row"><div><strong>Google Calendar</strong><span>Los botones de cada partido abren el evento listo para confirmar.</span></div><span className="status-ready"><Check /> Disponible</span></div><div className="setting-row"><div><strong>Instalar la aplicación</strong><span>En Android usa “Añadir a pantalla de inicio”; en Windows, “Instalar aplicación”.</span></div><span className="status-ready"><Check /> PWA lista</span></div>
-        </div> : <div className="season-settings">
+        </div> : settingsTab === "seasons" ? <div className="season-settings">
           <div className="panel season-overview"><div><span className="season-overview-icon"><Trophy /></span><div><p>TEMPORADA SELECCIONADA</p><h3>{shortSeasonName(data.settings.season)}</h3><span>{matchCountLabel(data.matches.length)} · {money(total)} netos</span></div></div><Button type="button" className="close-season-button" disabled={data.seasonStatus === "closed"} onClick={() => setCloseSeasonOpen(true)}>{data.seasonStatus === "closed" ? "Temporada cerrada" : "Cerrar temporada"}</Button></div>
           <div className="season-list" aria-label="Temporadas guardadas">{seasonOptions.map((season) => { const seasonTotal = season.matches.reduce((sum, match) => sum + net(match), 0); return <button type="button" className={`season-card ${season.selected ? "selected" : ""}`} aria-pressed={season.selected} key={season.id} onClick={() => selectSeason(season.id)}><span className="season-card-icon"><CalendarDays /></span><span className="season-card-main"><span><strong>{shortSeasonName(season.name)}</strong><em className={season.status}>{season.status === "open" ? "En curso" : "Cerrada"}</em></span><small>{matchCountLabel(season.matches.length)} · {season.recordedGames.length} {season.recordedGames.length === 1 ? "vídeo" : "vídeos"}</small></span><span className="season-card-total"><strong>{money(seasonTotal)}</strong><small>{season.selected ? "Viendo ahora" : "Ver temporada"}</small></span></button>; })}</div>
           <div className="panel season-help"><ShieldCheck /><div><strong>Tu historial queda guardado</strong><span>Al cerrar una temporada se conservan sus partidos, ganancias y vídeos. La siguiente empieza sin partidos, pero mantiene tu perfil, compañeros y tarifas.</span></div></div>
+        </div> : <div className="rate-analyzer">
+          <div className="panel rate-source-card"><span className="season-overview-icon"><CircleEuro /></span><div><p>TARIFAS OFICIALES ACTIVAS</p><h3>{shortSeasonName(data.rateSheet?.season || "2026/27")}</h3><span>{data.rates.filter((rate) => rate.locked).length} importes · retención fija del 2 %{data.rateSheet?.source === "pdf" ? ` · ${data.rateSheet.fileName}` : " · incluidas en RefFlow"}</span></div></div>
+          <input ref={rateFileRef} hidden type="file" accept="application/pdf,.pdf" onClick={(event) => { event.currentTarget.value = ""; }} onChange={(event) => void analyzeRatePdf(event.target.files?.[0])} />
+          <button type="button" className={`drop-zone rate-drop-zone ${ratePdfState}`} disabled={ratePdfState === "reading"} onClick={() => rateFileRef.current?.click()}>
+            <span className="drop-icon">{ratePdfState === "ready" ? <Check /> : <UploadCloud />}</span>
+            <strong>{ratePdfState === "reading" ? "Analizando tarifas…" : ratePdfState === "error" ? "No se pudo analizar" : "Sube el PDF oficial de tarifas"}</strong>
+            <small>{ratePdfFileName || "El análisis se hace en tu dispositivo · máximo 20 MB"}</small>
+            <span className="fake-button">{ratePdfState === "reading" ? "Leyendo PDF" : "Seleccionar PDF"}</span>
+          </button>
+          {ratePdfError && <p className="rate-analyzer-error">{ratePdfError}</p>}
+          {ratePdfPreview && <div className="panel rate-preview">
+            <div className="panel-heading"><div className="pdf-ready-icon"><Check /></div><div><h3>Vista previa · {shortSeasonName(ratePdfPreview.season)}</h3><p>{ratePdfFileName}</p></div></div>
+            <div className="pdf-summary-grid"><div><strong>{ratePdfPreview.rows.length}</strong><span>Categorías admitidas</span></div><div><strong>{ratePdfPreview.rates.length}</strong><span>Tarifas con importe</span></div><div><strong>2 %</strong><span>Retención aplicada</span></div></div>
+            <div className="rate-exclusions"><ShieldCheck /><div><strong>Exclusiones automáticas</strong><span>Se ignoran toda la sección FEB, Liga Provincial Guadalajara y cualquier trofeo.{ratePdfPreview.excludedCategories.length ? ` Detectadas en este PDF: ${ratePdfPreview.excludedCategories.join(", ")}.` : ""}</span></div></div>
+            <div className="rate-preview-table"><table><thead><tr><th>Categoría</th><th>Principal</th><th>Auxiliar</th><th>Anotador</th><th>Crono</th><th>Oper. RLL</th><th>Ayudante</th></tr></thead><tbody>{ratePdfPreview.rows.map((row) => <tr key={row.category}><td><strong>{row.category}</strong></td>{row.amounts.map((amount, index) => <td key={`${row.category}-${index}`}>{amount === null ? "—" : money(amount)}</td>)}</tr>)}</tbody></table></div>
+            <div className="pdf-actions"><Button type="button" variant="outline" onClick={discardRatePdf}>Cancelar</Button><Button type="button" className="primary-btn" onClick={applyRatePdf}><Check /> Actualizar tarifas oficiales</Button></div>
+          </div>}
+          <div className="panel season-help"><ShieldCheck /><div><strong>Las tarifas personalizadas no se borran</strong><span>Al confirmar solo se sustituyen las tarifas oficiales. Si el formato del PDF cambia y no se puede leer con seguridad, RefFlow no aplica ningún cambio.</span></div></div>
         </div>}
         <Dialog open={closeSeasonOpen} onOpenChange={setCloseSeasonOpen}><DialogContent className="dialog-card season-close-dialog"><DialogHeader><DialogTitle>Cerrar temporada {shortSeasonName(data.settings.season)}</DialogTitle><DialogDescription>Se archivarán todos sus partidos, ganancias y vídeos. Después se abrirá la temporada {shortSeasonName(nextSeasonName)} sin partidos ni ingresos; tus tarifas, compañeros y perfil se conservarán.</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" onClick={() => setCloseSeasonOpen(false)}>Cancelar</Button><Button className="close-season-confirm" onClick={closeCurrentSeason}>Cerrar y crear {shortSeasonName(nextSeasonName)}</Button></DialogFooter></DialogContent></Dialog>
       </section>}
