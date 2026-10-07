@@ -17,7 +17,7 @@ import { findMatchForVideoTitle, findRecordedGameForMatch } from "@/lib/video-ma
 type View = "inicio" | "importar" | "regionales" | "escolares" | "grabados" | "ganancias" | "arbitros" | "tarifas" | "ajustes";
 type MatchCompetition = "regional" | "escolar";
 type Match = { id: string; competition: MatchCompetition; matchNumber?: string; date: string; time: string; home: string; away: string; category: string; role: string; venue: string; gross: number; diets: number; retention: number; partners: string[]; video?: boolean; status: "confirmado" | "pendiente" };
-type Rate = { id: string; category: string; role: string; amount: number; retention: number };
+type Rate = { id: string; category: string; role: string; amount: number; retention: number; locked?: boolean };
 type Contact = { id: string; name: string; phone: string; role: string; licenseId?: string; city?: string };
 type VideoAnnotation = { id: string; seconds: number; category: string; label: string; note: string; createdAt: string };
 type RecordedGame = { id: string; title: string; youtubeUrl: string; youtubeId: string; matchId?: string; createdAt: string; annotations: VideoAnnotation[] };
@@ -26,8 +26,70 @@ type SeasonArchive = { id: string; name: string; status: SeasonStatus; matches: 
 type AppData = { dataVersion: number; activeSeasonId: string; seasonStatus: SeasonStatus; seasonArchives: SeasonArchive[]; matches: Match[]; rates: Rate[]; contacts: Contact[]; recordedGames: RecordedGame[]; settings: { name: string; season: string; earningsGoal: number; username: string; profileImage: string } };
 type Viewer = { userId: string; displayName: string; email: string; fullName: string | null };
 
+const RETENTION_RATE = 2;
+const rateTextKey = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().replace(/\s+/g, " ").toLocaleLowerCase("es-ES");
+const fixedRoleKey = (value: string) => {
+  const role = rateTextKey(value).replace(/[.]/g, "");
+  const aliases: Record<string, string> = {
+    ap: "arbitro principal", arbitro: "arbitro principal", "arbitro principal": "arbitro principal",
+    aa: "arbitro auxiliar", "arbitro auxiliar": "arbitro auxiliar",
+    an: "anotador", anotador: "anotador",
+    cr: "cronometrador", crono: "cronometrador", cronometrador: "cronometrador",
+    op: "operador rll", "oper 24\"": "operador rll", "operador 24\"": "operador rll", "operador rll": "operador rll", "operador reloj lanzamiento": "operador rll", "operador reloj de lanzamiento": "operador rll",
+    aj: "ayudante de anotador", "ayte anotador": "ayudante de anotador", "ayudante anotador": "ayudante de anotador", "ayudante de anotador": "ayudante de anotador",
+    cta: "cta",
+  };
+  return aliases[role] || role;
+};
+const fixedRateKey = (rate: Pick<Rate, "category" | "role">) => rateTextKey(rate.category) + "::" + fixedRoleKey(rate.role);
+const OFFICIAL_RATE_ROLES = ["Árbitro principal", "Árbitro auxiliar", "Anotador", "Cronometrador", "Operador RLL", "Ayudante de anotador", "CTA"] as const;
+const OFFICIAL_RATE_TABLE: Array<[string, Array<number | null>]> = [
+  ["Primera FEB", [455, 455, 54, 54, 54, 54, 19]],
+  ["Segunda FEB", [270, 270, 48, 48, 48, 48, 17]],
+  ["Tercera FEB", [140, 140, 29.12, 29.12, 29.12, 29.12, 14]],
+  ["Primera Nacional Masculina", [82.5, 82.5, 24.25, 22.25, 22.25, null, null]],
+  ["Primera Nacional Femenina", [75.5, 75.5, 24.25, 22.25, 22.25, null, null]],
+  ["Primera División Autonómica", [52, 52, 17.75, 15.75, 15.75, null, null]],
+  ["Zonal Castilla-La Mancha", [30.5, 30.5, 15.75, 14.15, 14.15, null, null]],
+  ["Segunda Femenina Castilla-La Mancha", [30.5, 30.5, 15.75, 14.15, 14.15, null, null]],
+  ["Liga UCLM U18 Masculino y Femenina", [22.25, 22.25, 14.75, 12.15, 12.15, null, null]],
+  ["Junior Zonal U19 Masculino y Femenina", [21.25, 21.25, 13.75, 12.15, 12.15, null, null]],
+  ["Liga Provincial Guadalajara", [30, 30, 19, 19, null, null, null]],
+  ["Liga Autonómica Cadete Masculino y Femenina", [16.5, 16.5, 12, 11, 11, null, null]],
+  ["Sector Infantil Asociado Masculino y Femenina", [15.5, 15.5, 11, 11, 11, null, null]],
+  ["Alevín Federado", [18, 18, 11, 10, null, null, null]],
+  ["3x3 Escolar Federado por hora", [15, null, 12, null, null, null, null]],
+  ["3x3 Senior Federado por hora", [18, null, 12, null, null, null, null]],
+  ["4x4 Federado", [20, null, 14, null, null, null, null]],
+  ["Cadete Provincial", [20, null, 12, null, null, null, null]],
+  ["Infantil Provincial", [17, null, 11, null, null, null, null]],
+  ["Alevín Provincial", [16, null, 10, null, null, null, null]],
+  ["Benjamín Provincial", [15, null, 10, null, null, null, null]],
+  ["Trofeo JCCM Masculino", [85, 85, 25, 25, 25, null, null]],
+  ["Trofeo JCCM Femenino", [60, 60, 20, 20, 20, null, null]],
+  ["Trofeo Diputación Ciudad Real Masculino", [55, 55, 20, 20, 20, null, null]],
+  ["Trofeo Diputación Ciudad Real Femenino", [55, 55, 20, 20, 20, null, null]],
+];
+const OFFICIAL_RATES_2026_27: Rate[] = OFFICIAL_RATE_TABLE.flatMap(([category, amounts], categoryIndex) =>
+  amounts.flatMap((amount, roleIndex) => amount === null ? [] : [{
+    id: "official-2026-27-" + categoryIndex + "-" + roleIndex,
+    category,
+    role: OFFICIAL_RATE_ROLES[roleIndex],
+    amount,
+    retention: RETENTION_RATE,
+    locked: true,
+  }])
+);
+const mergeOfficialRates = (rates: Rate[] = []): Rate[] => {
+  const fixedKeys = new Set(OFFICIAL_RATES_2026_27.map(fixedRateKey));
+  const customRates = rates
+    .filter((rate) => !fixedKeys.has(fixedRateKey(rate)))
+    .map((rate) => ({ ...rate, retention: RETENTION_RATE, locked: false }));
+  return [...OFFICIAL_RATES_2026_27.map((rate) => ({ ...rate })), ...customRates];
+};
+
 const sampleData: AppData = {
-  dataVersion: 5,
+  dataVersion: 6,
   activeSeasonId: "season-2026-27",
   seasonStatus: "open",
   seasonArchives: [],
@@ -36,23 +98,18 @@ const sampleData: AppData = {
     { id: "p2", competition: "regional", date: "2026-09-20", time: "12:00", home: "CEI Toledo", away: "CB La Sagra", category: "Infantil Regional", role: "Árbitro", venue: "Pabellón IES Universidad Laboral", gross: 24, diets: 0, retention: 2, partners: ["Lucía Gómez"], video: false, status: "confirmado" },
     { id: "p3", competition: "regional", date: "2026-09-12", time: "17:00", home: "CB Mora", away: "Basket Azuqueca", category: "Cadete Regional", role: "Árbitro", venue: "Pabellón Municipal de Mora", gross: 27.5, diets: 6, retention: 2, partners: ["Álvaro Martín"], video: false, status: "confirmado" },
   ],
-  rates: [
-    { id: "t1", category: "Junior Autonómico", role: "Árbitro auxiliar", amount: 32, retention: 2 },
-    { id: "t2", category: "Infantil Regional", role: "Árbitro", amount: 24, retention: 2 },
-    { id: "t3", category: "Cadete Regional", role: "Árbitro", amount: 27.5, retention: 2 },
-  ],
+  rates: mergeOfficialRates(),
   contacts: [],
   recordedGames: [],
   settings: { name: "Árbitro", season: "2026/27", earningsGoal: 250, username: "", profileImage: "" },
 };
-const emptyData = (name: string): AppData => ({ dataVersion: 5, activeSeasonId: "season-2026-27", seasonStatus: "open", seasonArchives: [], matches: [], rates: [], contacts: [], recordedGames: [], settings: { name, season: "2026/27", earningsGoal: 250, username: "", profileImage: "" } });
+const emptyData = (name: string): AppData => ({ dataVersion: 6, activeSeasonId: "season-2026-27", seasonStatus: "open", seasonArchives: [], matches: [], rates: mergeOfficialRates(), contacts: [], recordedGames: [], settings: { name, season: "2026/27", earningsGoal: 250, username: "", profileImage: "" } });
 
 const nav: { id: View; label: string; icon: LucideIcon }[] = [
   { id: "inicio", label: "Inicio", icon: Home }, { id: "importar", label: "Importar", icon: FileUp }, { id: "regionales", label: "Regionales", icon: CalendarDays }, { id: "escolares", label: "Partidos escolares", icon: Trophy }, { id: "grabados", label: "Partidos grabados", icon: Video },
   { id: "ganancias", label: "Ganancias", icon: BarChart3 }, { id: "arbitros", label: "Árbitros", icon: Users }, { id: "tarifas", label: "Tarifas", icon: CircleEuro }, { id: "ajustes", label: "Ajustes", icon: Settings },
 ];
-const RETENTION_RATE = 2;
-const CURRENT_DATA_VERSION = 5;
+const CURRENT_DATA_VERSION = 6;
 const SAMPLE_CONTACT_IDS = new Set(["a1", "a2"]);
 const seasonStartYearFromName = (value: string) => {
   const raw = value.match(/(\d{2,4})\s*\/\s*(\d{2,4})/);
@@ -87,7 +144,7 @@ const normalizeData = (state: AppData): AppData => {
     seasonStatus: (state.dataVersion || 0) >= 5 && state.seasonStatus === "closed" ? "closed" : "open",
     seasonArchives: ((state.dataVersion || 0) >= 5 ? state.seasonArchives || [] : []).map(normalizeSeasonArchive),
     matches: (state.matches || []).map((match) => ({ ...match, competition: match.competition === "escolar" ? "escolar" : "regional", retention: RETENTION_RATE })),
-    rates: (state.rates || []).map((rate) => ({ ...rate, retention: RETENTION_RATE })),
+    rates: mergeOfficialRates(state.rates || []),
     contacts: removeSampleContacts ? (state.contacts || []).filter((contact) => !SAMPLE_CONTACT_IDS.has(contact.id)) : (state.contacts || []),
     settings: {
       name: state.settings?.name || "Árbitro",
@@ -100,7 +157,38 @@ const normalizeData = (state: AppData): AppData => {
 };
 const money = (n: number) => new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(n);
 const net = (m: Match) => m.gross * (1 - RETENTION_RATE / 100) + m.diets;
-const normalizeRateField = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().replace(/\s+/g, " ").toLocaleLowerCase("es-ES");
+const normalizeRateField = rateTextKey;
+const canonicalCategory = (value: string) => {
+  const category = normalizeRateField(value);
+  const has = (...parts: string[]) => parts.every((part) => category.includes(part));
+  if (has("primera", "feb")) return "primera feb";
+  if (has("segunda", "feb")) return "segunda feb";
+  if (has("tercera", "feb")) return "tercera feb";
+  if (has("primera", "nacional", "masculin")) return "primera nacional masculina";
+  if (has("primera", "nacional", "femenin")) return "primera nacional femenina";
+  if (has("primera", "division", "autonom")) return "primera division autonomica";
+  if (has("zonal", "castilla", "mancha")) return "zonal castilla la mancha";
+  if (has("segunda", "femenin", "castilla", "mancha")) return "segunda femenina castilla la mancha";
+  if (has("liga", "uclm") && has("u18")) return "liga uclm u18";
+  if ((has("junior", "zonal") || has("u19")) && has("junior")) return "junior zonal u19";
+  if (has("provincial", "guadalajara")) return "liga provincial guadalajara";
+  if (has("autonom", "cadete")) return "liga autonomica cadete";
+  if (has("sector", "infantil", "asociado")) return "sector infantil asociado";
+  if (has("3x3", "escolar")) return "3x3 escolar federado";
+  if (has("3x3", "senior")) return "3x3 senior federado";
+  if (has("4x4")) return "4x4 federado";
+  if (has("alevin", "federado")) return "alevin federado";
+  if (has("benjamin", "federado")) return "benjamin federado";
+  if (has("cadete", "provincial")) return "cadete provincial";
+  if (has("infantil", "provincial")) return "infantil provincial";
+  if (has("alevin", "provincial")) return "alevin provincial";
+  if (has("benjamin", "provincial")) return "benjamin provincial";
+  if (has("trofeo", "jccm", "masculin")) return "trofeo jccm masculino";
+  if (has("trofeo", "jccm", "femenin")) return "trofeo jccm femenino";
+  if (has("trofeo", "diput") && has("c", "real", "mas")) return "trofeo diputacion ciudad real masculino";
+  if (has("trofeo", "diput") && has("c", "real", "fem")) return "trofeo diputacion ciudad real femenino";
+  return category;
+};
 const canonicalRole = (value: string) => {
   const role = normalizeRateField(value).replace(/[.]/g, "");
   const aliases: Record<string, string> = {
@@ -146,10 +234,10 @@ const resizeProfileImage = (file: File) => new Promise<string>((resolve, reject)
   reader.readAsDataURL(file);
 });
 const findSavedRate = (rates: Rate[], category: string, role: string) => {
-  const normalizedCategory = normalizeRateField(category);
+  const normalizedCategory = canonicalCategory(category);
   const normalizedRole = normalizeRateField(role);
   if (!normalizedCategory || !normalizedRole) return undefined;
-  return rates.find((rate) => normalizeRateField(rate.category) === normalizedCategory && canonicalRole(rate.role) === canonicalRole(normalizedRole));
+  return rates.find((rate) => canonicalCategory(rate.category) === normalizedCategory && canonicalRole(rate.role) === canonicalRole(normalizedRole));
 };
 const applySavedRate = (match: Match, rates: Rate[]): Match => {
   const savedRate = findSavedRate(rates, match.category, match.role);
@@ -774,7 +862,7 @@ export default function RefFlow() {
 
       {view === "arbitros" && <section className="content"><div className="page-heading"><div><p>AGENDA</p><h2>Compañeros</h2></div><Button className="primary-btn" onClick={() => { const name = prompt("Nombre del árbitro"); if (name) setData((d) => ({ ...d, contacts: [...d.contacts, { id: makeId(), name, phone: "", role: "Árbitro" }] })); }}><Plus /> Añadir árbitro</Button></div>{data.contacts.length === 0 ? <div className="panel contacts-empty"><Users /><h3>Aún no hay compañeros</h3><p>Los árbitros y oficiales aparecerán aquí automáticamente cuando importes una designación.</p></div> : <div className="contact-grid">{data.contacts.map((c) => <article className="contact-card" key={c.id}><span className="avatar">{c.name.split(" ").map((x) => x[0]).slice(0,2).join("")}</span><div><h3>{c.name}</h3><p>{c.role}{c.city ? ` · ${c.city}` : ""}</p><span>{c.phone || "Teléfono pendiente"}</span></div><div className="contact-actions"><button onClick={() => { const phone = prompt("Número de teléfono", c.phone); if (phone !== null) setData((d) => ({ ...d, contacts: d.contacts.map((x) => x.id === c.id ? { ...x, phone } : x) })); }} aria-label={`Editar teléfono de ${c.name}`}><Pencil /></button><button disabled={!c.phone} onClick={() => window.open(`https://wa.me/34${c.phone.replace(/\D/g, "")}`, "_blank", "noopener,noreferrer")}><MessageCircle /> WhatsApp</button></div></article>)}</div>}</section>}
 
-      {view === "tarifas" && <section className="content"><div className="page-heading"><div><p>TARIFAS</p><h2>Temporada {data.settings.season}</h2></div><Button className="primary-btn" onClick={() => setData((d) => ({ ...d, rates: [...d.rates, { id: makeId(), category: "Nueva categoría", role: "Árbitro", amount: 0, retention: RETENTION_RATE }] }))}><Plus /> Nueva tarifa</Button></div><div className="panel table-wrap"><table><thead><tr><th>Competición</th><th>Función</th><th>Tarifa</th><th>Retención</th><th>Neto</th><th></th></tr></thead><tbody>{data.rates.map((r) => <tr key={r.id}><td><Input value={r.category} onChange={(e) => setData((d) => ({ ...d, rates: d.rates.map((x) => x.id === r.id ? { ...x, category: e.target.value } : x) }))} /></td><td><Input value={r.role} onChange={(e) => setData((d) => ({ ...d, rates: d.rates.map((x) => x.id === r.id ? { ...x, role: e.target.value } : x) }))} /></td><td><Input type="number" step="0.01" value={r.amount} onChange={(e) => setData((d) => ({ ...d, rates: d.rates.map((x) => x.id === r.id ? { ...x, amount: Number(e.target.value) } : x) }))} /></td><td><Input type="number" value={RETENTION_RATE} readOnly aria-label="Retención fija del 2 por ciento" /></td><td><strong>{money(r.amount * (1 - RETENTION_RATE / 100))}</strong></td><td><button className="icon-delete" onClick={() => setData((d) => ({ ...d, rates: d.rates.filter((x) => x.id !== r.id) }))}><X /></button></td></tr>)}</tbody></table></div></section>}
+      {view === "tarifas" && <section className="content"><div className="page-heading"><div><p>TARIFAS</p><h2>Temporada {data.settings.season}</h2></div><Button className="primary-btn" onClick={() => setData((d) => ({ ...d, rates: [...d.rates, { id: makeId(), category: "Nueva categoría", role: "Árbitro", amount: 0, retention: RETENTION_RATE }] }))}><Plus /> Nueva tarifa</Button></div><div className="panel table-wrap"><table><thead><tr><th>Competición</th><th>Función</th><th>Tarifa</th><th>Retención</th><th>Neto</th><th></th></tr></thead><tbody>{data.rates.map((r) => <tr key={r.id}><td><Input value={r.category} readOnly={Boolean(r.locked)} onChange={(e) => setData((d) => ({ ...d, rates: d.rates.map((x) => x.id === r.id ? { ...x, category: e.target.value } : x) }))} /></td><td><Input value={r.role} readOnly={Boolean(r.locked)} onChange={(e) => setData((d) => ({ ...d, rates: d.rates.map((x) => x.id === r.id ? { ...x, role: e.target.value } : x) }))} /></td><td><Input type="number" step="0.01" value={r.amount} readOnly={Boolean(r.locked)} onChange={(e) => setData((d) => ({ ...d, rates: d.rates.map((x) => x.id === r.id ? { ...x, amount: Number(e.target.value) } : x) }))} /></td><td><Input type="number" value={RETENTION_RATE} readOnly aria-label="Retención fija del 2 por ciento" /></td><td><strong>{money(r.amount * (1 - RETENTION_RATE / 100))}</strong></td><td>{r.locked ? <small title="Tarifa oficial fija de la temporada 2026/27">Oficial 26/27</small> : <button className="icon-delete" aria-label="Eliminar tarifa" onClick={() => setData((d) => ({ ...d, rates: d.rates.filter((x) => x.id !== r.id) }))}><X /></button>}</td></tr>)}</tbody></table></div></section>}
 
       {view === "ajustes" && <section className="content narrow"><div className="section-intro"><p>AJUSTES</p><h2>Personaliza RefFlow</h2><span>Configura tu perfil y organiza el historial de temporadas.</span></div>
         <nav className="settings-tabs" role="tablist" aria-label="Secciones de ajustes"><button type="button" role="tab" aria-selected={settingsTab === "profile"} className={settingsTab === "profile" ? "active" : ""} onClick={() => setSettingsTab("profile")}><Settings /> Perfil y cuenta</button><button type="button" role="tab" aria-selected={settingsTab === "seasons"} className={settingsTab === "seasons" ? "active" : ""} onClick={() => setSettingsTab("seasons")}><Trophy /> Temporadas</button></nav>
