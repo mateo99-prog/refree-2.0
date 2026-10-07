@@ -19,6 +19,8 @@ export type ParsedRateSheet = {
   rows: ParsedRateRow[];
   rates: Array<{ category: string; role: string; amount: number }>;
   excludedCategories: string[];
+  diets: Array<{ id: string; label: string; amount: number }>;
+  mileage: Array<{ id: string; label: string; amount: number }>;
 };
 
 type PdfRow = { y: number; items: PdfTextItem[] };
@@ -82,6 +84,24 @@ const parseDataRow = (row: PdfRow): ParsedRateRow | null => {
   return { category: categoryLabel(rawCategory), amounts };
 };
 
+const parseExpenseOptions = (pages: PdfTextItem[][]) => {
+  const diets: Array<{ id: string; label: string; amount: number }> = [];
+  const mileage: Array<{ id: string; label: string; amount: number }> = [];
+  const dietLabels: Record<string, string> = { de1kma75km: "De 1 km a 75 km", de76kma150km: "De 76 km a 150 km", de151kma250km: "De 151 km a 250 km", de251km: "Más de 251 km" };
+  const mileageLabels: Record<string, string> = { kmindividual: "Individual", kmcolectivo: "Colectivo", kmcadregional: "CAD regional", kmdeportebase: "Deporte base" };
+  pages.flatMap(rowsForPage).forEach((row) => {
+    const leftLabel = clean(row.items.filter((item) => item.x < 155).map((item) => item.text).join(" "));
+    const leftAmountText = clean(row.items.filter((item) => item.x >= 155 && item.x < 215).map((item) => item.text).join(" "));
+    const rightLabel = clean(row.items.filter((item) => item.x >= 215 && item.x < 340).map((item) => item.text).join(" "));
+    const rightAmountText = clean(row.items.filter((item) => item.x >= 340).map((item) => item.text).join(" "));
+    const leftAmount = Number(leftAmountText.match(/\d+(?:[.,]\d{1,2})?/)?.[0].replace(",", "."));
+    const rightAmount = Number(rightAmountText.match(/\d+(?:[.,]\d{1,2})?/)?.[0].replace(",", "."));
+    if (normalized(leftLabel).startsWith("de ") && Number.isFinite(leftAmount)) { const id = compactNormalized(leftLabel); diets.push({ id, label: dietLabels[id] || categoryLabel(leftLabel), amount: leftAmount }); }
+    if (normalized(rightLabel).startsWith("km ") && Number.isFinite(rightAmount)) { const id = compactNormalized(rightLabel); mileage.push({ id, label: mileageLabels[id] || categoryLabel(rightLabel.replace(/^KM\s+/i, "")), amount: rightAmount }); }
+  });
+  return { diets, mileage };
+};
+
 export const parseFbclmRatePages = (pages: PdfTextItem[][]): ParsedRateSheet => {
   const season = parseSeason(pages);
   const acceptedRows: ParsedRateRow[] = [];
@@ -104,6 +124,7 @@ export const parseFbclmRatePages = (pages: PdfTextItem[][]): ParsedRateSheet => 
 
   const rows = acceptedRows.filter((row, index) => acceptedRows.findIndex((candidate) => normalized(candidate.category) === normalized(row.category)) === index);
   const rates = rows.flatMap((row) => row.amounts.flatMap((amount, index) => amount === null ? [] : [{ category: row.category, role: FBCLM_RATE_ROLES[index], amount }]));
+  const expenses = parseExpenseOptions(pages);
   if (!season || rows.length < 5 || rates.length < 10) throw new Error("FORMATO_TARIFAS_NO_RECONOCIDO");
-  return { season, rows, rates, excludedCategories };
+  return { season, rows, rates, excludedCategories, ...expenses };
 };
