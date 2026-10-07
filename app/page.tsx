@@ -28,6 +28,10 @@ type Viewer = { userId: string; displayName: string; email: string; fullName: st
 
 const RETENTION_RATE = 2;
 const rateTextKey = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().replace(/\s+/g, " ").toLocaleLowerCase("es-ES");
+const isSchoolCategory = (category: string) => {
+  const normalized = rateTextKey(category);
+  return normalized.includes("provincial") || normalized.includes("deporte escolar") || normalized.includes("3x3 escolar");
+};
 const fixedRoleKey = (value: string) => {
   const role = rateTextKey(value).replace(/[.]/g, "");
   const aliases: Record<string, string> = {
@@ -44,9 +48,6 @@ const fixedRoleKey = (value: string) => {
 const fixedRateKey = (rate: Pick<Rate, "category" | "role">) => rateTextKey(rate.category) + "::" + fixedRoleKey(rate.role);
 const OFFICIAL_RATE_ROLES = ["Árbitro principal", "Árbitro auxiliar", "Anotador", "Cronometrador", "Operador RLL", "Ayudante de anotador", "CTA"] as const;
 const OFFICIAL_RATE_TABLE: Array<[string, Array<number | null>]> = [
-  ["Primera FEB", [455, 455, 54, 54, 54, 54, 19]],
-  ["Segunda FEB", [270, 270, 48, 48, 48, 48, 17]],
-  ["Tercera FEB", [140, 140, 29.12, 29.12, 29.12, 29.12, 14]],
   ["Primera Nacional Masculina", [82.5, 82.5, 24.25, 22.25, 22.25, null, null]],
   ["Primera Nacional Femenina", [75.5, 75.5, 24.25, 22.25, 22.25, null, null]],
   ["Primera División Autonómica", [52, 52, 17.75, 15.75, 15.75, null, null]],
@@ -54,7 +55,6 @@ const OFFICIAL_RATE_TABLE: Array<[string, Array<number | null>]> = [
   ["Segunda Femenina Castilla-La Mancha", [30.5, 30.5, 15.75, 14.15, 14.15, null, null]],
   ["Liga UCLM U18 Masculino y Femenina", [22.25, 22.25, 14.75, 12.15, 12.15, null, null]],
   ["Junior Zonal U19 Masculino y Femenina", [21.25, 21.25, 13.75, 12.15, 12.15, null, null]],
-  ["Liga Provincial Guadalajara", [30, 30, 19, 19, null, null, null]],
   ["Liga Autonómica Cadete Masculino y Femenina", [16.5, 16.5, 12, 11, 11, null, null]],
   ["Sector Infantil Asociado Masculino y Femenina", [15.5, 15.5, 11, 11, 11, null, null]],
   ["Alevín Federado", [18, 18, 11, 10, null, null, null]],
@@ -65,10 +65,6 @@ const OFFICIAL_RATE_TABLE: Array<[string, Array<number | null>]> = [
   ["Infantil Provincial", [17, null, 11, null, null, null, null]],
   ["Alevín Provincial", [16, null, 10, null, null, null, null]],
   ["Benjamín Provincial", [15, null, 10, null, null, null, null]],
-  ["Trofeo JCCM Masculino", [85, 85, 25, 25, 25, null, null]],
-  ["Trofeo JCCM Femenino", [60, 60, 20, 20, 20, null, null]],
-  ["Trofeo Diputación Ciudad Real Masculino", [55, 55, 20, 20, 20, null, null]],
-  ["Trofeo Diputación Ciudad Real Femenino", [55, 55, 20, 20, 20, null, null]],
 ];
 const OFFICIAL_RATES_2026_27: Rate[] = OFFICIAL_RATE_TABLE.flatMap(([category, amounts], categoryIndex) =>
   amounts.flatMap((amount, roleIndex) => amount === null ? [] : [{
@@ -83,13 +79,13 @@ const OFFICIAL_RATES_2026_27: Rate[] = OFFICIAL_RATE_TABLE.flatMap(([category, a
 const mergeOfficialRates = (rates: Rate[] = []): Rate[] => {
   const fixedKeys = new Set(OFFICIAL_RATES_2026_27.map(fixedRateKey));
   const customRates = rates
-    .filter((rate) => !fixedKeys.has(fixedRateKey(rate)))
+    .filter((rate) => !rate.id.startsWith("official-2026-27-") && !fixedKeys.has(fixedRateKey(rate)))
     .map((rate) => ({ ...rate, retention: RETENTION_RATE, locked: false }));
   return [...OFFICIAL_RATES_2026_27.map((rate) => ({ ...rate })), ...customRates];
 };
 
 const sampleData: AppData = {
-  dataVersion: 6,
+  dataVersion: 7,
   activeSeasonId: "season-2026-27",
   seasonStatus: "open",
   seasonArchives: [],
@@ -103,13 +99,13 @@ const sampleData: AppData = {
   recordedGames: [],
   settings: { name: "Árbitro", season: "2026/27", earningsGoal: 250, username: "", profileImage: "" },
 };
-const emptyData = (name: string): AppData => ({ dataVersion: 6, activeSeasonId: "season-2026-27", seasonStatus: "open", seasonArchives: [], matches: [], rates: mergeOfficialRates(), contacts: [], recordedGames: [], settings: { name, season: "2026/27", earningsGoal: 250, username: "", profileImage: "" } });
+const emptyData = (name: string): AppData => ({ dataVersion: 7, activeSeasonId: "season-2026-27", seasonStatus: "open", seasonArchives: [], matches: [], rates: mergeOfficialRates(), contacts: [], recordedGames: [], settings: { name, season: "2026/27", earningsGoal: 250, username: "", profileImage: "" } });
 
 const nav: { id: View; label: string; icon: LucideIcon }[] = [
   { id: "inicio", label: "Inicio", icon: Home }, { id: "importar", label: "Importar", icon: FileUp }, { id: "regionales", label: "Regionales", icon: CalendarDays }, { id: "escolares", label: "Partidos escolares", icon: Trophy }, { id: "grabados", label: "Partidos grabados", icon: Video },
   { id: "ganancias", label: "Ganancias", icon: BarChart3 }, { id: "arbitros", label: "Árbitros", icon: Users }, { id: "tarifas", label: "Tarifas", icon: CircleEuro }, { id: "ajustes", label: "Ajustes", icon: Settings },
 ];
-const CURRENT_DATA_VERSION = 6;
+const CURRENT_DATA_VERSION = 7;
 const SAMPLE_CONTACT_IDS = new Set(["a1", "a2"]);
 const seasonStartYearFromName = (value: string) => {
   const raw = value.match(/(\d{2,4})\s*\/\s*(\d{2,4})/);
@@ -128,7 +124,7 @@ const normalizeSeasonArchive = (season: SeasonArchive): SeasonArchive => ({
   id: season.id || seasonIdFor(season.name),
   name: season.name || "2026/27",
   status: season.status === "open" ? "open" : "closed",
-  matches: (season.matches || []).map((match) => ({ ...match, competition: match.competition === "escolar" ? "escolar" : "regional", retention: RETENTION_RATE })),
+  matches: (season.matches || []).map((match) => ({ ...match, competition: isSchoolCategory(match.category) || match.competition === "escolar" ? "escolar" : "regional", retention: RETENTION_RATE })),
   rates: (season.rates || []).map((rate) => ({ ...rate, retention: RETENTION_RATE })),
   contacts: season.contacts || [],
   recordedGames: season.recordedGames || [],
@@ -143,7 +139,7 @@ const normalizeData = (state: AppData): AppData => {
     activeSeasonId: (state.dataVersion || 0) >= 5 && state.activeSeasonId ? state.activeSeasonId : seasonIdFor(state.settings?.season || "2026/27"),
     seasonStatus: (state.dataVersion || 0) >= 5 && state.seasonStatus === "closed" ? "closed" : "open",
     seasonArchives: ((state.dataVersion || 0) >= 5 ? state.seasonArchives || [] : []).map(normalizeSeasonArchive),
-    matches: (state.matches || []).map((match) => ({ ...match, competition: match.competition === "escolar" ? "escolar" : "regional", retention: RETENTION_RATE })),
+    matches: (state.matches || []).map((match) => ({ ...match, competition: isSchoolCategory(match.category) || match.competition === "escolar" ? "escolar" : "regional", retention: RETENTION_RATE })),
     rates: mergeOfficialRates(state.rates || []),
     contacts: removeSampleContacts ? (state.contacts || []).filter((contact) => !SAMPLE_CONTACT_IDS.has(contact.id)) : (state.contacts || []),
     settings: {
@@ -166,11 +162,15 @@ const canonicalCategory = (value: string) => {
   if (has("tercera", "feb")) return "tercera feb";
   if (has("primera", "nacional", "masculin")) return "primera nacional masculina";
   if (has("primera", "nacional", "femenin")) return "primera nacional femenina";
+  if (has("liga", "ribesalat")) return "primera nacional femenina";
+  if (has("liga", "stm", "autonom", "masculin")) return "primera division autonomica";
+  if (has("primera", "autonom") && has("fem")) return "primera division autonomica";
   if (has("primera", "division", "autonom")) return "primera division autonomica";
+  if (has("segunda", "division", "autonom", "masculin")) return "zonal castilla la mancha";
   if (has("zonal", "castilla", "mancha")) return "zonal castilla la mancha";
   if (has("segunda", "femenin", "castilla", "mancha")) return "segunda femenina castilla la mancha";
   if (has("liga", "uclm") && has("u18")) return "liga uclm u18";
-  if ((has("junior", "zonal") || has("u19")) && has("junior")) return "junior zonal u19";
+  if (has("liga", "u19") || has("junior", "zonal", "u19")) return "junior zonal u19";
   if (has("provincial", "guadalajara")) return "liga provincial guadalajara";
   if (has("autonom", "cadete")) return "liga autonomica cadete";
   if (has("sector", "infantil", "asociado")) return "sector infantil asociado";
@@ -188,6 +188,9 @@ const canonicalCategory = (value: string) => {
   if (has("trofeo", "diput") && has("c", "real", "mas")) return "trofeo diputacion ciudad real masculino";
   if (has("trofeo", "diput") && has("c", "real", "fem")) return "trofeo diputacion ciudad real femenino";
   return category;
+};
+const importedCompetitionForCategory = (category: string, fallback: MatchCompetition): MatchCompetition => {
+  return isSchoolCategory(category) ? "escolar" : fallback;
 };
 const canonicalRole = (value: string) => {
   const role = normalizeRateField(value).replace(/[.]/g, "");
@@ -609,13 +612,15 @@ export default function RefFlow() {
       if (existingKeys.has(key)) { skipped += 1; return []; }
       existingKeys.add(key);
       const partners = designation.officials.filter((official) => !pdfImport.designatedLicenseId || official.licenseId !== pdfImport.designatedLicenseId).map((official) => official.name);
-      const match: Match = { id: makeId(), competition, matchNumber: designation.matchNumber, date: designation.date, time: designation.time, home: designation.home, away: designation.away, category: designation.category, role: designation.role, venue: designation.venue || "Pabellón pendiente", gross: 0, diets: 0, retention: RETENTION_RATE, partners, video: false, status: "confirmado" };
+      const importedCompetition = importedCompetitionForCategory(designation.category, competition);
+      const match: Match = { id: makeId(), competition: importedCompetition, matchNumber: designation.matchNumber, date: designation.date, time: designation.time, home: designation.home, away: designation.away, category: designation.category, role: designation.role, venue: designation.venue || "Pabellón pendiente", gross: 0, diets: 0, retention: RETENTION_RATE, partners, video: false, status: "confirmado" };
       if (findSavedRate(data.rates, match.category, match.role)) importedRates += 1;
       return [applySavedRate(match, data.rates)];
     });
     setData((current) => ({ ...current, matches: [...matches, ...current.matches], contacts: mergedContacts.contacts }));
-    setView(competition === "escolar" ? "escolares" : "regionales");
-    setNotice(`${matches.length} ${matches.length === 1 ? "designación añadida" : "designaciones añadidas"}${importedRates ? ` · ${importedRates} con tarifa importada` : ""}${mergedContacts.added ? ` · ${mergedContacts.added} compañeros nuevos en Árbitros` : ""}${mergedContacts.updated ? ` · ${mergedContacts.updated} contactos completados` : ""}${skipped ? ` · ${skipped} duplicadas omitidas` : ""}. Revisa los datos antes de añadir el partido al calendario.`);
+    const automaticallySchool = matches.filter((match) => match.competition === "escolar" && competition !== "escolar").length;
+    setView(matches.length > 0 && matches.every((match) => match.competition === "escolar") ? "escolares" : competition === "escolar" ? "escolares" : "regionales");
+    setNotice(`${matches.length} ${matches.length === 1 ? "designación añadida" : "designaciones añadidas"}${importedRates ? ` · ${importedRates} con tarifa importada` : ""}${automaticallySchool ? ` · ${automaticallySchool} provinciales clasificadas como escolares` : ""}${mergedContacts.added ? ` · ${mergedContacts.added} compañeros nuevos en Árbitros` : ""}${mergedContacts.updated ? ` · ${mergedContacts.updated} contactos completados` : ""}${skipped ? ` · ${skipped} duplicadas omitidas` : ""}. Revisa los datos antes de añadir el partido al calendario.`);
     setPdfState("idle"); setPdfImport(null); setPdfFileName(""); setPdfError("");
     if (fileRef.current) fileRef.current.value = "";
   };
