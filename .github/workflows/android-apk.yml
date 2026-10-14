@@ -41,7 +41,7 @@ jobs:
           cp android/app/build/outputs/bundle/release/app-release.aab android-artifact/RefFlow-unsigned.aab
           cp "$BUILD_TOOLS_DIR/zipalign" android-artifact/signing-tools/
           cp "$BUILD_TOOLS_DIR/apksigner" android-artifact/signing-tools/
-          cp "$BUILD_TOOLS_DIR/lib/apksigner.jar" android-artifact/signing-tools/lib/
+          cp "$BUILD_TOOLS_DIR/lib/"* android-artifact/signing-tools/lib/
 
       - name: Publish transfer chunks
         env:
