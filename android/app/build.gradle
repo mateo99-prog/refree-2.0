@@ -55,7 +55,7 @@ android {
     namespace "app.refflow.android"
     defaultConfig {
         applicationId "app.refflow.android"
-        minSdkVersion 21
+        minSdkVersion 24
         targetSdkVersion 36
         versionCode 1
         versionName "1"
