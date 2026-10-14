@@ -295,7 +295,7 @@ const annotationGroups = [
   { name: "Señalización", color: "#2eaf55", items: ["Comunicación", "Correcta", "Incorrecta"] },
   { name: "Transiciones", color: "#df2abb", items: ["Nuevo cabeza", "Nuevo cola"] },
   { name: "Violaciones", color: "#a84bc0", items: ["3 segundos en zona", "Avance ilegal", "Campo atrás", "Doble regate"] },
-  { name: "Dudas habituales", color: "#0b5cff", items: ["¿Pasos?", "¿Doble regate?", "¿Pie intencionado?", "¿Campo atrás?", "¿Fuera de banda?", "¿Interferencia o interposición?", "¿Carga o bloqueo?", "¿Falta en acción de tiro?", "¿Falta antideportiva?", "¿Falta técnica?", "¿8 segundos?", "¿24 o 14 segundos?", "¿Saque correcto?", "¿Canasta fuera de tiempo?"] },
+  { name: "Dudas habituales", color: "#0b5cff", items: ["¿Pie intencionado?", "¿Fuera de banda?", "¿Interferencia o interposición?", "¿Falta en acción de tiro?", "¿Falta antideportiva?", "¿Falta técnica?", "¿8 segundos?", "¿24 o 14 segundos?", "¿Saque correcto?", "¿Canasta fuera de tiempo?", "¿A quién señala la flecha de posesión alterna?"] },
 ];
 const parseYouTubeId = (value: string) => {
   try { const url = new URL(value.trim()); if (url.hostname.includes("youtu.be")) return url.pathname.slice(1).split("/")[0]; if (url.hostname.includes("youtube.com")) return url.searchParams.get("v") || url.pathname.match(/\/(?:embed|shorts|live)\/([^/?]+)/)?.[1] || ""; } catch { return ""; }
