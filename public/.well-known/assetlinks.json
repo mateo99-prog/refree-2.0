@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "app.refflow.android",
+      "sha256_cert_fingerprints": [
+        "F7:D9:11:F2:7A:D8:8E:E2:BC:42:9E:89:43:01:EE:8E:78:86:91:06:A4:A6:F4:D1:54:D2:FA:6D:8E:AE:16:BE"
+      ]
+    }
+  }
+]
