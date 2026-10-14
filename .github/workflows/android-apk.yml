@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -42,6 +42,24 @@ jobs:
           cp "$BUILD_TOOLS_DIR/zipalign" android-artifact/signing-tools/
           cp "$BUILD_TOOLS_DIR/apksigner" android-artifact/signing-tools/
           cp "$BUILD_TOOLS_DIR/lib/apksigner.jar" android-artifact/signing-tools/lib/
+
+      - name: Publish transfer chunks
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tar -C android-artifact -czf /tmp/refflow-android-output.tar.gz .
+          mkdir -p /tmp/refflow-android-output
+          base64 -w 0 /tmp/refflow-android-output.tar.gz | split -b 500000 -d -a 3 --additional-suffix=.b64 - /tmp/refflow-android-output/part-
+          sha256sum /tmp/refflow-android-output.tar.gz > /tmp/refflow-android-output/SHA256SUMS.txt
+          cd /tmp/refflow-android-output
+          git init
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b android-apk-output
+          git add .
+          git commit -m "Publish Android build ${GITHUB_SHA}"
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --force origin android-apk-output
 
       - name: Upload Android build
         uses: actions/upload-artifact@v4
