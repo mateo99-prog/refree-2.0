@@ -39,6 +39,7 @@ jobs:
           mkdir -p android-artifact/signing-tools/lib
           cp android/app/build/outputs/apk/release/app-release-unsigned.apk android-artifact/RefFlow-unsigned.apk
           cp android/app/build/outputs/bundle/release/app-release.aab android-artifact/RefFlow-unsigned.aab
+          "$BUILD_TOOLS_DIR/zipalign" -f -p 4 android-artifact/RefFlow-unsigned.apk android-artifact/RefFlow-aligned-unsigned.apk
           cp "$BUILD_TOOLS_DIR/zipalign" android-artifact/signing-tools/
           cp "$BUILD_TOOLS_DIR/apksigner" android-artifact/signing-tools/
           cp "$BUILD_TOOLS_DIR/lib/"* android-artifact/signing-tools/lib/
