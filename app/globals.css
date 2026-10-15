@@ -60,6 +60,7 @@
 .shirt-recommendation{width:max-content;max-width:100%;margin-top:8px;padding:6px 9px;border-radius:8px;display:flex;align-items:center;gap:7px;font-size:11px}.shirt-recommendation.available{background:#edf5ff;color:#275d9f}.shirt-recommendation.unknown{background:#f3f5f8;color:#788597}.shirt-recommendation i{width:15px;height:15px;border:2px solid #fff;border-radius:50%;box-shadow:0 0 0 1px rgba(20,43,75,.18);flex:0 0 auto}.shirt-recommendation strong{color:#113f78}@media(max-width:560px){.settings-tabs{grid-template-columns:repeat(2,minmax(0,1fr))}.settings-tabs button{min-height:54px;height:auto}.shirt-settings{padding:17px}.shirt-settings-heading{flex-direction:column}.shirt-color-grid{grid-template-columns:1fr}}
 
 .row-actions button:disabled{cursor:default;opacity:.38;background:#fff;color:#8a96a7;border-color:#dfe6ef}
+.row-actions .shirt-action svg{width:18px;height:18px;filter:drop-shadow(0 0 1px rgba(7,21,45,.8));stroke-width:2.5}.row-actions .shirt-action.selected{background:#f7f9fc;border-color:#cbd6e4}.row-actions .shirt-action:hover{background:#eef3f9;border-color:#b7c7dc}
 
 /* Keep long forms usable on every viewport, including short mobile screens. */
 .dialog-card{

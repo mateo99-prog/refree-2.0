@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import type { Session } from "@supabase/supabase-js";
-import { BarChart3, Bell, CalendarDays, Camera, Check, ChevronLeft, ChevronRight, CircleEuro, Clock3, Download, ExternalLink, FileSpreadsheet, FileText, FileUp, Home, MapPin, Maximize2, Menu, MessageCircle, Minimize2, Pencil, Play, Plus, Search, Settings, ShieldCheck, Tag, TimerReset, Trash2, Trophy, UploadCloud, Users, Video, WalletCards, X } from "lucide-react";
+import { BarChart3, Bell, CalendarDays, Camera, Check, ChevronLeft, ChevronRight, CircleEuro, Clock3, Download, ExternalLink, FileSpreadsheet, FileText, FileUp, Home, MapPin, Maximize2, Menu, MessageCircle, Minimize2, Pencil, Play, Plus, Search, Settings, ShieldCheck, Shirt, Tag, TimerReset, Trash2, Trophy, UploadCloud, Users, Video, WalletCards, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,7 +18,8 @@ import { findMatchForVideoTitle, findRecordedGameForMatch } from "@/lib/video-ma
 
 type View = "inicio" | "importar" | "calendario" | "regionales" | "escolares" | "grabados" | "ganancias" | "arbitros" | "tarifas" | "ajustes";
 type MatchCompetition = "regional" | "escolar";
-type Match = { id: string; competition: MatchCompetition; matchNumber?: string; date: string; time: string; home: string; away: string; homeColor?: string; awayColor?: string; shirtRecommendation?: "pink" | "black"; category: string; role: string; venue: string; gross: number; diets: number; dietOptionId?: string; dietLabel?: string; mileageKm?: number; mileageRate?: number; mileageOptionId?: string; mileageLabel?: string; friendly?: boolean; retention: number; partners: string[]; video?: boolean; status: "confirmado" | "pendiente" };
+type ShirtChoice = "shirt1" | "shirt2";
+type Match = { id: string; competition: MatchCompetition; matchNumber?: string; date: string; time: string; home: string; away: string; homeColor?: string; awayColor?: string; shirtRecommendation?: ShirtChoice | "pink" | "black"; category: string; role: string; venue: string; gross: number; diets: number; dietOptionId?: string; dietLabel?: string; mileageKm?: number; mileageRate?: number; mileageOptionId?: string; mileageLabel?: string; friendly?: boolean; retention: number; partners: string[]; video?: boolean; status: "confirmado" | "pendiente" };
 type Rate = { id: string; category: string; role: string; amount: number; retention: number; locked?: boolean };
 type ExpenseOption = { id: string; label: string; amount: number };
 type ExpensePolicy = { season: string; diets: ExpenseOption[]; mileage: ExpenseOption[] };
@@ -29,7 +30,7 @@ type SeasonStatus = "open" | "closed";
 type RateSheetMeta = { season: string; fileName: string; importedAt: string; source: "included" | "pdf" };
 type SeasonArchive = { id: string; name: string; status: SeasonStatus; matches: Match[]; rates: Rate[]; rateSheet?: RateSheetMeta; expensePolicy?: ExpensePolicy; contacts: Contact[]; recordedGames: RecordedGame[]; earningsGoal: number; closedAt?: string };
 type NotificationSettings = { enabled: boolean; reminderMinutes: number };
-type ShirtColors = { pink: string; black: string };
+type ShirtColors = { shirt1: string; shirt2: string; pink?: string; black?: string };
 type AppData = { dataVersion: number; privacyNoticeVersion?: string; privacyNoticeAcknowledgedAt?: string | null; activeSeasonId: string; seasonStatus: SeasonStatus; seasonArchives: SeasonArchive[]; matches: Match[]; rates: Rate[]; rateSheet?: RateSheetMeta; expensePolicy?: ExpensePolicy; contacts: Contact[]; recordedGames: RecordedGame[]; notificationSettings?: NotificationSettings; settings: { name: string; season: string; earningsGoal: number; username: string; profileImage: string; shirtColors: ShirtColors } };
 type Viewer = { userId: string; displayName: string; email: string; fullName: string | null };
 
@@ -37,7 +38,7 @@ const RETENTION_RATE = 2;
 const VAPID_PUBLIC_KEY = "BBy33TB9ztkb1imIXrPQbbODnFWLjD3YM1Oh3eJcx81Gc6oieaF00VeI0YVMxSM1u8MvBowcTswdlXMPAdi2Ngk";
 const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = { enabled: false, reminderMinutes: 1440 };
 const CURRENT_PRIVACY_NOTICE_VERSION = "2026-10";
-const DEFAULT_SHIRT_COLORS: ShirtColors = { pink: "#f04f98", black: "#111827" };
+const DEFAULT_SHIRT_COLORS: ShirtColors = { shirt1: "#f04f98", shirt2: "#111827" };
 const rateTextKey = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().replace(/\s+/g, " ").toLocaleLowerCase("es-ES");
 const isSchoolCategory = (category: string) => {
   const normalized = rateTextKey(category);
@@ -127,7 +128,7 @@ const mergeOfficialRates = (rates: Rate[] = []): Rate[] => {
 };
 
 const sampleData: AppData = {
-  dataVersion: 13,
+  dataVersion: 14,
   activeSeasonId: "season-2026-27",
   seasonStatus: "open",
   seasonArchives: [],
@@ -144,13 +145,13 @@ const sampleData: AppData = {
   notificationSettings: DEFAULT_NOTIFICATION_SETTINGS,
   settings: { name: "Árbitro", season: "2026/27", earningsGoal: 250, username: "", profileImage: "", shirtColors: DEFAULT_SHIRT_COLORS },
 };
-const emptyData = (name: string): AppData => ({ dataVersion: 13, privacyNoticeVersion: CURRENT_PRIVACY_NOTICE_VERSION, privacyNoticeAcknowledgedAt: null, activeSeasonId: "season-2026-27", seasonStatus: "open", seasonArchives: [], matches: [], rates: mergeOfficialRates(), rateSheet: DEFAULT_RATE_SHEET, expensePolicy: DEFAULT_EXPENSE_POLICY, contacts: [], recordedGames: [], notificationSettings: DEFAULT_NOTIFICATION_SETTINGS, settings: { name, season: "2026/27", earningsGoal: 250, username: "", profileImage: "", shirtColors: DEFAULT_SHIRT_COLORS } });
+const emptyData = (name: string): AppData => ({ dataVersion: 14, privacyNoticeVersion: CURRENT_PRIVACY_NOTICE_VERSION, privacyNoticeAcknowledgedAt: null, activeSeasonId: "season-2026-27", seasonStatus: "open", seasonArchives: [], matches: [], rates: mergeOfficialRates(), rateSheet: DEFAULT_RATE_SHEET, expensePolicy: DEFAULT_EXPENSE_POLICY, contacts: [], recordedGames: [], notificationSettings: DEFAULT_NOTIFICATION_SETTINGS, settings: { name, season: "2026/27", earningsGoal: 250, username: "", profileImage: "", shirtColors: DEFAULT_SHIRT_COLORS } });
 
 const nav: { id: View; label: string; icon: LucideIcon }[] = [
   { id: "inicio", label: "Inicio", icon: Home }, { id: "importar", label: "Importar", icon: FileUp }, { id: "calendario", label: "Calendario", icon: CalendarDays }, { id: "regionales", label: "Regionales", icon: CalendarDays }, { id: "escolares", label: "Partidos escolares", icon: Trophy }, { id: "grabados", label: "Partidos grabados", icon: Video },
   { id: "ganancias", label: "Ganancias", icon: BarChart3 }, { id: "arbitros", label: "Árbitros", icon: Users }, { id: "tarifas", label: "Tarifas", icon: CircleEuro }, { id: "ajustes", label: "Ajustes", icon: Settings },
 ];
-const CURRENT_DATA_VERSION = 13;
+const CURRENT_DATA_VERSION = 14;
 const SAMPLE_CONTACT_IDS = new Set(["a1", "a2"]);
 const seasonStartYearFromName = (value: string) => {
   const raw = value.match(/(\d{2,4})\s*\/\s*(\d{2,4})/);
@@ -166,6 +167,7 @@ const fullSeasonName = (start: number) => `${start}/${String(start + 1).slice(-2
 const seasonIdFor = (name: string) => { const start = seasonStartYearFromName(name); return `season-${start}-${String(start + 1).slice(-2)}`; };
 const normalizeMatch = (match: Match): Match => ({
   ...match,
+  shirtRecommendation: match.shirtRecommendation === "pink" ? "shirt1" : match.shirtRecommendation === "black" ? "shirt2" : match.shirtRecommendation,
   competition: isSchoolCategory(match.category) || match.competition === "escolar" ? "escolar" : "regional",
   diets: Math.max(0, Number(match.diets) || 0),
   mileageKm: Math.max(0, Number(match.mileageKm) || 0),
@@ -213,8 +215,8 @@ const normalizeData = (state: AppData): AppData => {
       username: state.settings?.username || "",
       profileImage: state.settings?.profileImage || "",
       shirtColors: {
-        pink: state.settings?.shirtColors?.pink || DEFAULT_SHIRT_COLORS.pink,
-        black: state.settings?.shirtColors?.black || DEFAULT_SHIRT_COLORS.black,
+        shirt1: state.settings?.shirtColors?.shirt1 || state.settings?.shirtColors?.pink || DEFAULT_SHIRT_COLORS.shirt1,
+        shirt2: state.settings?.shirtColors?.shirt2 || state.settings?.shirtColors?.black || DEFAULT_SHIRT_COLORS.shirt2,
       },
     },
   };
@@ -245,13 +247,14 @@ const parsedTeamColors = (value: string): Rgb[] => {
   return TEAM_COLOR_RGB.flatMap(([pattern, rgb]) => pattern.test(normalized) ? [rgb] : []);
 };
 const colorDistance = (first: Rgb, second: Rgb) => Math.sqrt(2 * (first[0] - second[0]) ** 2 + 4 * (first[1] - second[1]) ** 2 + 3 * (first[2] - second[2]) ** 2);
-const shirtRecommendation = (homeColor: string, awayColor: string, shirts: ShirtColors): "pink" | "black" | null => {
+const shirtRecommendation = (homeColor: string, awayColor: string, shirts: ShirtColors): ShirtChoice | null => {
   const teamColors = [...parsedTeamColors(homeColor), ...parsedTeamColors(awayColor)];
   if (teamColors.length === 0) return null;
   const contrast = (shirt: string) => Math.min(...teamColors.map((teamColor) => colorDistance(hexToRgb(shirt), teamColor)));
-  return contrast(shirts.pink) >= contrast(shirts.black) ? "pink" : "black";
+  return contrast(shirts.shirt1) >= contrast(shirts.shirt2) ? "shirt1" : "shirt2";
 };
-const shirtLabel = (shirt: "pink" | "black") => shirt === "pink" ? "camiseta rosa" : "camiseta negra";
+const shirtLabel = (shirt: ShirtChoice) => shirt === "shirt1" ? "Camiseta 1" : "Camiseta 2";
+const normalizedShirtChoice = (shirt?: Match["shirtRecommendation"]): ShirtChoice | undefined => shirt === "pink" ? "shirt1" : shirt === "black" ? "shirt2" : shirt;
 const importedCompetitionForCategory = (category: string, fallback: MatchCompetition): MatchCompetition => {
   return isSchoolCategory(category) ? "escolar" : fallback;
 };
@@ -1101,7 +1104,7 @@ export default function RefFlow() {
 
       {view === "calendario" && <section className="content calendar-page"><MatchCalendar matches={data.matches} cursor={calendarCursor} onChange={setCalendarCursor} /></section>}
 
-      {(view === "regionales" || view === "escolares") && <section className="content"><div className="page-heading"><div><p>{view === "escolares" ? "PARTIDOS ESCOLARES" : "PARTIDOS REGIONALES"}</p><h2>Temporada {data.settings.season}</h2></div><MatchDialog competition={activeCompetition} rates={data.rates} expensePolicy={data.expensePolicy || DEFAULT_EXPENSE_POLICY} onAdd={(m) => setData((d) => ({ ...d, matches: [m, ...d.matches] }))} /></div><div className="panel table-wrap"><table><thead><tr><th>Fecha</th><th>Partido</th><th>Categoría / función</th><th>Lugar</th><th>Neto</th><th>Acciones</th></tr></thead><tbody>{filtered.length === 0 ? <tr><td colSpan={6} className="empty-table">Aún no hay partidos {view === "escolares" ? "escolares" : "regionales"}.</td></tr> : filtered.sort((a,b) => b.date.localeCompare(a.date)).map((m) => { const recordedVideo = findRecordedGameForMatch(m, recordedGames); return <tr key={m.id}><td><strong>{dateLabel(m.date)}</strong><small>{m.time}</small></td><td><strong>{m.home}</strong><small>vs {m.away}{m.matchNumber ? ` · Nº ${m.matchNumber}` : ""}</small></td><td><span className="pill">{m.category}</span>{m.friendly && <span className="friendly-badge">Amistoso · 50 %</span>}<small>{m.role}</small></td><td><span>{m.venue}</span><small>{m.partners.join(", ") || "Sin compañeros"}</small></td><td><strong>{money(net(m))}</strong><small>{money(grossWithExpenses(m))} bruto</small></td><td><div className="row-actions"><EditMatchDialog match={m} rates={data.rates} expensePolicy={data.expensePolicy || DEFAULT_EXPENSE_POLICY} onSave={(updated) => updateMatch(m.id, updated)} /><button disabled={!recordedVideo} onClick={() => { if (!recordedVideo) return; setSelectedGameId(recordedVideo.id); setView("grabados"); }} className={recordedVideo ? "selected" : ""} aria-label={recordedVideo ? "Abrir vídeo del partido" : "No hay vídeo para este partido"} title={recordedVideo ? "Vídeo detectado · abrir análisis" : "No hay ningún vídeo correspondiente"}><Video /></button><button onClick={() => setData((d) => ({ ...d, matches: d.matches.filter((x) => x.id !== m.id) }))} aria-label="Eliminar partido" title="Eliminar partido"><X /></button></div></td></tr>; })}</tbody></table></div></section>}
+      {(view === "regionales" || view === "escolares") && <section className="content"><div className="page-heading"><div><p>{view === "escolares" ? "PARTIDOS ESCOLARES" : "PARTIDOS REGIONALES"}</p><h2>Temporada {data.settings.season}</h2></div><MatchDialog competition={activeCompetition} rates={data.rates} expensePolicy={data.expensePolicy || DEFAULT_EXPENSE_POLICY} onAdd={(m) => setData((d) => ({ ...d, matches: [m, ...d.matches] }))} /></div><div className="panel table-wrap"><table><thead><tr><th>Fecha</th><th>Partido</th><th>Categoría / función</th><th>Lugar</th><th>Neto</th><th>Acciones</th></tr></thead><tbody>{filtered.length === 0 ? <tr><td colSpan={6} className="empty-table">Aún no hay partidos {view === "escolares" ? "escolares" : "regionales"}.</td></tr> : filtered.sort((a,b) => b.date.localeCompare(a.date)).map((m) => { const recordedVideo = findRecordedGameForMatch(m, recordedGames); const selectedShirt = normalizedShirtChoice(m.shirtRecommendation); return <tr key={m.id}><td><strong>{dateLabel(m.date)}</strong><small>{m.time}</small></td><td><strong>{m.home}</strong><small>vs {m.away}{m.matchNumber ? ` · Nº ${m.matchNumber}` : ""}</small></td><td><span className="pill">{m.category}</span>{m.friendly && <span className="friendly-badge">Amistoso · 50 %</span>}<small>{m.role}</small></td><td><span>{m.venue}</span><small>{m.partners.join(", ") || "Sin compañeros"}</small></td><td><strong>{money(net(m))}</strong><small>{money(grossWithExpenses(m))} bruto</small></td><td><div className="row-actions"><EditMatchDialog match={m} rates={data.rates} expensePolicy={data.expensePolicy || DEFAULT_EXPENSE_POLICY} onSave={(updated) => updateMatch(m.id, updated)} /><button type="button" className={`shirt-action ${selectedShirt ? "selected" : ""}`} onClick={() => updateMatch(m.id, { shirtRecommendation: selectedShirt === "shirt1" ? "shirt2" : "shirt1" })} aria-label={selectedShirt ? `${shirtLabel(selectedShirt)} seleccionada. Pulsar para cambiar.` : "Seleccionar camiseta para el partido"} title={selectedShirt ? `${shirtLabel(selectedShirt)} · pulsar para cambiar` : "Sin camiseta asignada · pulsar para elegir Camiseta 1"}><Shirt style={{ color: selectedShirt ? data.settings.shirtColors[selectedShirt] : "#718095" }} /></button><button disabled={!recordedVideo} onClick={() => { if (!recordedVideo) return; setSelectedGameId(recordedVideo.id); setView("grabados"); }} className={recordedVideo ? "selected" : ""} aria-label={recordedVideo ? "Abrir vídeo del partido" : "No hay vídeo para este partido"} title={recordedVideo ? "Vídeo detectado · abrir análisis" : "No hay ningún vídeo correspondiente"}><Video /></button><button onClick={() => setData((d) => ({ ...d, matches: d.matches.filter((x) => x.id !== m.id) }))} aria-label="Eliminar partido" title="Eliminar partido"><X /></button></div></td></tr>; })}</tbody></table></div></section>}
 
       {view === "grabados" && <section className="content video-analysis-page"><div className="page-heading"><div><p>ANÁLISIS DE VÍDEO</p><h2>Partidos grabados</h2></div><VideoDialog matches={data.matches} onAdd={(game) => { setData((d) => ({ ...d, recordedGames: [...(d.recordedGames || []), game] })); setSelectedGameId(game.id); }} /></div>
         {recordedGames.length === 0 ? <div className="panel video-empty"><span><Video /></span><h3>Añade tu primer partido</h3><p>Pega un enlace de YouTube y podrás guardar acciones en el minuto y segundo exactos.</p><VideoDialog matches={data.matches} onAdd={(game) => { setData((d) => ({ ...d, recordedGames: [game] })); setSelectedGameId(game.id); }} /></div> : <div className="video-workspace">
@@ -1152,7 +1155,7 @@ export default function RefFlow() {
         </div> : settingsTab === "seasons" ? <div className="season-settings">
           <div className="panel season-overview"><div><span className="season-overview-icon"><Trophy /></span><div><p>TEMPORADA SELECCIONADA</p><h3>{shortSeasonName(data.settings.season)}</h3><span>{matchCountLabel(data.matches.length)} · {money(total)} netos</span></div></div><Button type="button" className="close-season-button" disabled={data.seasonStatus === "closed"} onClick={() => setCloseSeasonOpen(true)}>{data.seasonStatus === "closed" ? "Temporada cerrada" : "Cerrar temporada"}</Button></div>
           <div className="season-list" aria-label="Temporadas guardadas">{seasonOptions.map((season) => { const seasonTotal = season.matches.reduce((sum, match) => sum + net(match), 0); return <button type="button" className={`season-card ${season.selected ? "selected" : ""}`} aria-pressed={season.selected} key={season.id} onClick={() => selectSeason(season.id)}><span className="season-card-icon"><CalendarDays /></span><span className="season-card-main"><span><strong>{shortSeasonName(season.name)}</strong><em className={season.status}>{season.status === "open" ? "En curso" : "Cerrada"}</em></span><small>{matchCountLabel(season.matches.length)} · {season.recordedGames.length} {season.recordedGames.length === 1 ? "vídeo" : "vídeos"}</small></span><span className="season-card-total"><strong>{money(seasonTotal)}</strong><small>{season.selected ? "Viendo ahora" : "Ver temporada"}</small></span></button>; })}</div>
-          <div className="panel shirt-settings"><div className="shirt-settings-heading"><div><p>CAMISETAS DE ARBITRAJE</p><h3>Colores para las recomendaciones</h3><span>Al pulsar cada círculo se abre la ruleta de color del dispositivo.</span></div><button type="button" onClick={() => setData((current) => ({ ...current, settings: { ...current.settings, shirtColors: DEFAULT_SHIRT_COLORS } }))}>Restablecer</button></div><div className="shirt-color-grid"><label><input type="color" value={data.settings.shirtColors.pink} onChange={(event) => setData((current) => ({ ...current, settings: { ...current.settings, shirtColors: { ...current.settings.shirtColors, pink: event.target.value } } }))} aria-label="Color de la camiseta rosa" /><span><strong>Camiseta rosa</strong><small>{data.settings.shirtColors.pink.toUpperCase()}</small></span></label><label><input type="color" value={data.settings.shirtColors.black} onChange={(event) => setData((current) => ({ ...current, settings: { ...current.settings, shirtColors: { ...current.settings.shirtColors, black: event.target.value } } }))} aria-label="Color de la camiseta negra" /><span><strong>Camiseta negra</strong><small>{data.settings.shirtColors.black.toUpperCase()}</small></span></label></div><div className="shirt-settings-note"><ShieldCheck /><span>RefFlow elegirá la camiseta con mayor contraste frente a los colores del equipo local y visitante indicados en el PDF.</span></div></div>
+          <div className="panel shirt-settings"><div className="shirt-settings-heading"><div><p>CAMISETAS DE ARBITRAJE</p><h3>Colores para las recomendaciones</h3><span>Al pulsar cada círculo se abre la ruleta de color del dispositivo.</span></div><button type="button" onClick={() => setData((current) => ({ ...current, settings: { ...current.settings, shirtColors: DEFAULT_SHIRT_COLORS } }))}>Restablecer</button></div><div className="shirt-color-grid"><label><input type="color" value={data.settings.shirtColors.shirt1} onChange={(event) => setData((current) => ({ ...current, settings: { ...current.settings, shirtColors: { ...current.settings.shirtColors, shirt1: event.target.value } } }))} aria-label="Color de la camiseta 1" /><span><strong>Camiseta 1</strong><small>{data.settings.shirtColors.shirt1.toUpperCase()}</small></span></label><label><input type="color" value={data.settings.shirtColors.shirt2} onChange={(event) => setData((current) => ({ ...current, settings: { ...current.settings, shirtColors: { ...current.settings.shirtColors, shirt2: event.target.value } } }))} aria-label="Color de la camiseta 2" /><span><strong>Camiseta 2</strong><small>{data.settings.shirtColors.shirt2.toUpperCase()}</small></span></label></div><div className="shirt-settings-note"><ShieldCheck /><span>RefFlow compara directamente estos dos colores con las camisetas del equipo local y visitante indicadas en el PDF.</span></div></div>
           <div className="panel season-help"><ShieldCheck /><div><strong>Tu historial queda guardado</strong><span>Al cerrar una temporada se conservan sus partidos, ganancias y vídeos. La siguiente empieza sin partidos, pero mantiene tu perfil, compañeros y tarifas.</span></div></div>
         </div> : settingsTab === "notifications" ? <div className="notification-settings">
           <div className="panel notification-hero"><span className={`notification-icon ${notificationDeviceReady ? "enabled" : ""}`}><Bell /></span><div><p>AVISOS DE PARTIDOS</p><h3>{notificationDeviceReady ? "Avisos activos en este dispositivo" : (data.notificationSettings || DEFAULT_NOTIFICATION_SETTINGS).enabled ? "Actívalos también en este dispositivo" : "No te olvides de una designación"}</h3><span>RefFlow puede avisarte aunque la aplicación esté cerrada. Puedes activar el ordenador y el móvil por separado.</span></div><Button type="button" className={notificationDeviceReady ? "notification-disable" : "primary-btn"} disabled={notificationBusy} onClick={() => void (notificationDeviceReady ? disableNotifications() : enableNotifications())}>{notificationBusy ? "Comprobando…" : notificationDeviceReady ? "Desactivar en este dispositivo" : "Activar en este dispositivo"}</Button></div>
