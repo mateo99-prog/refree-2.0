@@ -15,6 +15,8 @@ export type ParsedDesignation = {
   category: string;
   home: string;
   away: string;
+  homeColor: string;
+  awayColor: string;
   role: string;
   venue: string;
   officials: PdfOfficial[];
@@ -124,6 +126,8 @@ const parseDetailPage = (rows: PdfRow[], designatedLicenseId: string, defaultVen
   const teamX = localLabel?.items.find((item) => normalized(item.text) === "equipo local")?.x || dayLabel.x;
   const home = localLabel && visitorLabel ? clean(rowsBetween(rows, localLabel.y, visitorLabel.y).map((row) => itemTextInRange(row, teamX, colorLabelX)).filter(Boolean).join(" ")) : "";
   const away = visitorLabel ? clean(rowsBetween(rows, visitorLabel.y, officialsHeader.y).map((row) => itemTextInRange(row, teamX, colorLabelX)).filter(Boolean).join(" ")) : "";
+  const homeColor = localLabel && visitorLabel ? clean(rowsBetween(rows, localLabel.y, visitorLabel.y).map((row) => itemTextInRange(row, colorLabelX)).filter(Boolean).join(" ")) : "";
+  const awayColor = visitorLabel ? clean(rowsBetween(rows, visitorLabel.y, officialsHeader.y).map((row) => itemTextInRange(row, colorLabelX)).filter(Boolean).join(" ")) : "";
 
   const roleLabel = officialsHeader.items.find((item) => normalized(item.text) === "funcion");
   const nameLabel = officialsHeader.items.find((item) => normalized(item.text).includes("nombre y apellidos"));
@@ -136,7 +140,7 @@ const parseDetailPage = (rows: PdfRow[], designatedLicenseId: string, defaultVen
   const ownOfficial = officials.find((official) => official.licenseId === designatedLicenseId);
   const role = ownOfficial?.role || roleByMatch.get(matchNumber) || "Función pendiente";
   if (!date || !time || !matchNumber || !category || !home || !away) return null;
-  return { matchNumber, date, time, category, home, away, role, venue: defaultVenue, officials };
+  return { matchNumber, date, time, category, home, away, homeColor, awayColor, role, venue: defaultVenue, officials };
 };
 
 export const parseFbclmDesignationPages = (pages: PdfTextItem[][]): ParsedDesignationPdf => {
