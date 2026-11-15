@@ -10,6 +10,8 @@ export type PdfOfficial = {
 
 export type ParsedDesignation = {
   matchNumber: string;
+  fbclmUrl?: string;
+  fbclmSearchUrl?: string;
   date: string;
   time: string;
   category: string;

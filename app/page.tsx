@@ -3,73 +3,337 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import type { Session } from "@supabase/supabase-js";
-import { BarChart3, Bell, CalendarDays, Camera, Check, ChevronLeft, ChevronRight, CircleEuro, Clock3, Download, ExternalLink, FileSpreadsheet, FileText, FileUp, Home, MapPin, Maximize2, Menu, MessageCircle, Minimize2, Pencil, Play, Plus, Search, Settings, ShieldCheck, Shirt, Tag, TimerReset, Trash2, Trophy, UploadCloud, Users, Video, WalletCards, X } from "lucide-react";
+import {
+  BarChart3,
+  Bell,
+  CalendarDays,
+  Camera,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  CircleEuro,
+  Clock3,
+  Download,
+  ExternalLink,
+  FileSpreadsheet,
+  FileText,
+  FileUp,
+  Home,
+  MapPin,
+  Maximize2,
+  Menu,
+  MessageCircle,
+  Minimize2,
+  Pencil,
+  Play,
+  Plus,
+  Search,
+  Settings,
+  ShieldCheck,
+  Shirt,
+  Tag,
+  TimerReset,
+  Trash2,
+  Trophy,
+  UploadCloud,
+  Users,
+  Video,
+  WalletCards,
+  X,
+} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  NativeSelect,
+  NativeSelectOption,
+} from "@/components/ui/native-select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { parseFbclmDesignationPages } from "@/lib/fbclm-pdf";
-import type { ParsedDesignationPdf, PdfOfficial, PdfTextItem } from "@/lib/fbclm-pdf";
-import { canonicalRateCategory, parseFbclmRatePages, rateCategoryLeagueNames } from "@/lib/fbclm-rates";
+import type {
+  ParsedDesignationPdf,
+  PdfOfficial,
+  PdfTextItem,
+} from "@/lib/fbclm-pdf";
+import {
+  canonicalRateCategory,
+  parseFbclmRatePages,
+  rateCategoryLeagueNames,
+} from "@/lib/fbclm-rates";
 import type { ParsedRateSheet } from "@/lib/fbclm-rates";
 import { supabase } from "@/lib/supabase";
-import { findMatchForVideoTitle, findRecordedGameForMatch } from "@/lib/video-match";
+import {
+  findMatchForVideoTitle,
+  findRecordedGameForMatch,
+} from "@/lib/video-match";
 
-type View = "inicio" | "importar" | "calendario" | "regionales" | "escolares" | "grabados" | "ganancias" | "arbitros" | "tarifas" | "ajustes";
+type View =
+  | "inicio"
+  | "importar"
+  | "calendario"
+  | "regionales"
+  | "escolares"
+  | "grabados"
+  | "ganancias"
+  | "arbitros"
+  | "tarifas"
+  | "ajustes";
 type MatchCompetition = "regional" | "escolar";
 type ShirtChoice = "shirt1" | "shirt2";
-type Match = { id: string; competition: MatchCompetition; matchNumber?: string; date: string; time: string; home: string; away: string; homeColor?: string; awayColor?: string; shirtRecommendation?: ShirtChoice | "pink" | "black"; category: string; role: string; venue: string; gross: number; diets: number; dietOptionId?: string; dietLabel?: string; mileageKm?: number; mileageRate?: number; mileageOptionId?: string; mileageLabel?: string; friendly?: boolean; retention: number; partners: string[]; video?: boolean; status: "confirmado" | "pendiente" };
-type Rate = { id: string; category: string; role: string; amount: number; retention: number; locked?: boolean };
+type Match = {
+  id: string;
+  competition: MatchCompetition;
+  matchNumber?: string;
+  fbclmUrl?: string;
+  fbclmSearchUrl?: string;
+  date: string;
+  time: string;
+  home: string;
+  away: string;
+  homeColor?: string;
+  awayColor?: string;
+  shirtRecommendation?: ShirtChoice | "pink" | "black";
+  category: string;
+  role: string;
+  venue: string;
+  gross: number;
+  diets: number;
+  dietOptionId?: string;
+  dietLabel?: string;
+  mileageKm?: number;
+  mileageRate?: number;
+  mileageOptionId?: string;
+  mileageLabel?: string;
+  friendly?: boolean;
+  retention: number;
+  partners: string[];
+  video?: boolean;
+  status: "confirmado" | "pendiente";
+};
+type Rate = {
+  id: string;
+  category: string;
+  role: string;
+  amount: number;
+  retention: number;
+  locked?: boolean;
+};
 type ExpenseOption = { id: string; label: string; amount: number };
-type ExpensePolicy = { season: string; diets: ExpenseOption[]; mileage: ExpenseOption[] };
-type Contact = { id: string; name: string; phone: string; role: string; licenseId?: string; city?: string };
-type VideoAnnotation = { id: string; seconds: number; category: string; label: string; note: string; createdAt: string };
-type RecordedGame = { id: string; title: string; youtubeUrl: string; youtubeId: string; matchId?: string; createdAt: string; annotations: VideoAnnotation[] };
+type ExpensePolicy = {
+  season: string;
+  diets: ExpenseOption[];
+  mileage: ExpenseOption[];
+};
+type Contact = {
+  id: string;
+  name: string;
+  phone: string;
+  role: string;
+  licenseId?: string;
+  city?: string;
+};
+type VideoAnnotation = {
+  id: string;
+  seconds: number;
+  category: string;
+  label: string;
+  note: string;
+  createdAt: string;
+};
+type RecordedGame = {
+  id: string;
+  title: string;
+  youtubeUrl: string;
+  youtubeId: string;
+  matchId?: string;
+  createdAt: string;
+  annotations: VideoAnnotation[];
+};
 type SeasonStatus = "open" | "closed";
-type RateSheetMeta = { season: string; fileName: string; importedAt: string; source: "included" | "pdf" };
-type SeasonArchive = { id: string; name: string; status: SeasonStatus; matches: Match[]; rates: Rate[]; rateSheet?: RateSheetMeta; expensePolicy?: ExpensePolicy; contacts: Contact[]; recordedGames: RecordedGame[]; earningsGoal: number; closedAt?: string };
+type RateSheetMeta = {
+  season: string;
+  fileName: string;
+  importedAt: string;
+  source: "included" | "pdf";
+};
+type SeasonArchive = {
+  id: string;
+  name: string;
+  status: SeasonStatus;
+  matches: Match[];
+  rates: Rate[];
+  rateSheet?: RateSheetMeta;
+  expensePolicy?: ExpensePolicy;
+  contacts: Contact[];
+  recordedGames: RecordedGame[];
+  earningsGoal: number;
+  closedAt?: string;
+};
 type NotificationSettings = { enabled: boolean; reminderMinutes: number };
-type ShirtColors = { shirt1: string; shirt2: string; pink?: string; black?: string };
-type AppData = { dataVersion: number; privacyNoticeVersion?: string; privacyNoticeAcknowledgedAt?: string | null; activeSeasonId: string; seasonStatus: SeasonStatus; seasonArchives: SeasonArchive[]; matches: Match[]; rates: Rate[]; rateSheet?: RateSheetMeta; expensePolicy?: ExpensePolicy; contacts: Contact[]; recordedGames: RecordedGame[]; notificationSettings?: NotificationSettings; settings: { name: string; season: string; earningsGoal: number; username: string; profileImage: string; shirtColors: ShirtColors } };
-type Viewer = { userId: string; displayName: string; email: string; fullName: string | null };
+type ShirtColors = {
+  shirt1: string;
+  shirt2: string;
+  pink?: string;
+  black?: string;
+};
+type AppData = {
+  dataVersion: number;
+  privacyNoticeVersion?: string;
+  privacyNoticeAcknowledgedAt?: string | null;
+  activeSeasonId: string;
+  seasonStatus: SeasonStatus;
+  seasonArchives: SeasonArchive[];
+  matches: Match[];
+  rates: Rate[];
+  rateSheet?: RateSheetMeta;
+  expensePolicy?: ExpensePolicy;
+  contacts: Contact[];
+  recordedGames: RecordedGame[];
+  notificationSettings?: NotificationSettings;
+  settings: {
+    name: string;
+    season: string;
+    earningsGoal: number;
+    username: string;
+    profileImage: string;
+    shirtColors: ShirtColors;
+  };
+};
+type Viewer = {
+  userId: string;
+  displayName: string;
+  email: string;
+  fullName: string | null;
+};
 
 const RETENTION_RATE = 2;
-const VAPID_PUBLIC_KEY = "BBy33TB9ztkb1imIXrPQbbODnFWLjD3YM1Oh3eJcx81Gc6oieaF00VeI0YVMxSM1u8MvBowcTswdlXMPAdi2Ngk";
-const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = { enabled: false, reminderMinutes: 1440 };
+const VAPID_PUBLIC_KEY =
+  "BBy33TB9ztkb1imIXrPQbbODnFWLjD3YM1Oh3eJcx81Gc6oieaF00VeI0YVMxSM1u8MvBowcTswdlXMPAdi2Ngk";
+const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
+  enabled: false,
+  reminderMinutes: 1440,
+};
 const CURRENT_PRIVACY_NOTICE_VERSION = "2026-10";
-const DEFAULT_SHIRT_COLORS: ShirtColors = { shirt1: "#f04f98", shirt2: "#111827" };
-const rateTextKey = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().replace(/\s+/g, " ").toLocaleLowerCase("es-ES");
+const DEFAULT_SHIRT_COLORS: ShirtColors = {
+  shirt1: "#f04f98",
+  shirt2: "#111827",
+};
+const resolveFbclmMatch = async (
+  match: ParsedDesignationPdf["matches"][number],
+) => {
+  const params = new URLSearchParams({
+    number: match.matchNumber,
+    home: match.home,
+    away: match.away,
+    date: match.date,
+  });
+  try {
+    const response = await fetch(`/api/fbclm-match?${params}`);
+    if (!response.ok) return match;
+    const result = (await response.json()) as {
+      found?: boolean;
+      url?: string;
+      searchUrl?: string;
+    };
+    return {
+      ...match,
+      fbclmUrl: result.found ? result.url : undefined,
+      fbclmSearchUrl: result.searchUrl,
+    };
+  } catch {
+    return match;
+  }
+};
+const rateTextKey = (value: string) =>
+  value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLocaleLowerCase("es-ES");
 const isSchoolCategory = (category: string) => {
   const normalized = rateTextKey(category);
-  return normalized.includes("provincial") || normalized.includes("deporte escolar") || normalized.includes("3x3 escolar");
+  return (
+    normalized.includes("provincial") ||
+    normalized.includes("deporte escolar") ||
+    normalized.includes("3x3 escolar")
+  );
 };
 const fixedRoleKey = (value: string) => {
   const role = rateTextKey(value).replace(/[.]/g, "");
   const aliases: Record<string, string> = {
-    ap: "arbitro principal", arbitro: "arbitro principal", "arbitro principal": "arbitro principal",
-    aa: "arbitro auxiliar", "arbitro auxiliar": "arbitro auxiliar",
-    an: "anotador", anotador: "anotador",
-    cr: "cronometrador", crono: "cronometrador", cronometrador: "cronometrador",
-    op: "operador rll", "oper 24\"": "operador rll", "operador 24\"": "operador rll", "operador rll": "operador rll", "operador reloj lanzamiento": "operador rll", "operador reloj de lanzamiento": "operador rll",
-    aj: "ayudante de anotador", "ayte anotador": "ayudante de anotador", "ayudante anotador": "ayudante de anotador", "ayudante de anotador": "ayudante de anotador",
+    ap: "arbitro principal",
+    arbitro: "arbitro principal",
+    "arbitro principal": "arbitro principal",
+    aa: "arbitro auxiliar",
+    "arbitro auxiliar": "arbitro auxiliar",
+    an: "anotador",
+    anotador: "anotador",
+    cr: "cronometrador",
+    crono: "cronometrador",
+    cronometrador: "cronometrador",
+    op: "operador rll",
+    'oper 24"': "operador rll",
+    'operador 24"': "operador rll",
+    "operador rll": "operador rll",
+    "operador reloj lanzamiento": "operador rll",
+    "operador reloj de lanzamiento": "operador rll",
+    aj: "ayudante de anotador",
+    "ayte anotador": "ayudante de anotador",
+    "ayudante anotador": "ayudante de anotador",
+    "ayudante de anotador": "ayudante de anotador",
     cta: "cta",
   };
   return aliases[role] || role;
 };
-const fixedRateKey = (rate: Pick<Rate, "category" | "role">) => rateTextKey(rate.category) + "::" + fixedRoleKey(rate.role);
-const OFFICIAL_RATE_ROLES = ["Árbitro principal", "Árbitro auxiliar", "Anotador", "Cronometrador", "Operador RLL", "Ayudante de anotador", "CTA"] as const;
+const fixedRateKey = (rate: Pick<Rate, "category" | "role">) =>
+  rateTextKey(rate.category) + "::" + fixedRoleKey(rate.role);
+const OFFICIAL_RATE_ROLES = [
+  "Árbitro principal",
+  "Árbitro auxiliar",
+  "Anotador",
+  "Cronometrador",
+  "Operador RLL",
+  "Ayudante de anotador",
+  "CTA",
+] as const;
 const OFFICIAL_RATE_TABLE: Array<[string, Array<number | null>]> = [
   ["Primera Nacional Masculina", [82.5, 82.5, 24.25, 22.25, 22.25, null, null]],
-  ["Liga STM 1º Autonómica Masculina", [52, 52, 17.75, 15.75, 15.75, null, null]],
-  ["Segunda División Autonómica Masculina", [30.5, 30.5, 15.75, 14.15, 14.15, null, null]],
-  ["Junior U18 Masculina - Liga UCLM Masculina", [22.25, 22.25, 14.75, 12.15, 12.15, null, null]],
+  [
+    "Liga STM 1º Autonómica Masculina",
+    [52, 52, 17.75, 15.75, 15.75, null, null],
+  ],
+  [
+    "Segunda División Autonómica Masculina",
+    [30.5, 30.5, 15.75, 14.15, 14.15, null, null],
+  ],
+  [
+    "Junior U18 Masculina - Liga UCLM Masculina",
+    [22.25, 22.25, 14.75, 12.15, 12.15, null, null],
+  ],
   ["Junior U19 Masculina", [21.25, 21.25, 13.75, 12.15, 12.15, null, null]],
   ["Liga Autonómica Cadete Masculina", [16.5, 16.5, 12, 11, 11, null, null]],
   ["Sector Infantil Masculino Asociado", [15.5, 15.5, 11, 11, 11, null, null]],
-  ["1º División Nacional Femenina - Liga RibéSalat", [75.5, 75.5, 24.25, 22.25, 22.25, null, null]],
-  ["Primera Autonómica Fem - Liga Igualdad", [30.5, 30.5, 15.75, 14.15, 14.15, null, null]],
-  ["Junior U18 Femenina - Liga UCLM Femenina", [22.25, 22.25, 14.75, 12.15, 12.15, null, null]],
+  [
+    "1º División Nacional Femenina - Liga RibéSalat",
+    [75.5, 75.5, 24.25, 22.25, 22.25, null, null],
+  ],
+  [
+    "Primera Autonómica Fem - Liga Igualdad",
+    [30.5, 30.5, 15.75, 14.15, 14.15, null, null],
+  ],
+  [
+    "Junior U18 Femenina - Liga UCLM Femenina",
+    [22.25, 22.25, 14.75, 12.15, 12.15, null, null],
+  ],
   ["Liga U19 Femenina", [21.25, 21.25, 13.75, 12.15, 12.15, null, null]],
   ["Liga Autonómica Cadete Femenina", [16.5, 16.5, 12, 11, 11, null, null]],
   ["Sector Infantil Femenino Asociado", [15.5, 15.5, 11, 11, 11, null, null]],
@@ -82,17 +346,29 @@ const OFFICIAL_RATE_TABLE: Array<[string, Array<number | null>]> = [
   ["Alevín Provincial", [16, null, 10, null, null, null, null]],
   ["Benjamín Provincial", [15, null, 10, null, null, null, null]],
 ];
-const OFFICIAL_RATES_2026_27: Rate[] = OFFICIAL_RATE_TABLE.flatMap(([category, amounts], categoryIndex) =>
-  amounts.flatMap((amount, roleIndex) => amount === null ? [] : [{
-    id: "official-2026-27-" + categoryIndex + "-" + roleIndex,
-    category,
-    role: OFFICIAL_RATE_ROLES[roleIndex],
-    amount,
-    retention: RETENTION_RATE,
-    locked: true,
-  }])
+const OFFICIAL_RATES_2026_27: Rate[] = OFFICIAL_RATE_TABLE.flatMap(
+  ([category, amounts], categoryIndex) =>
+    amounts.flatMap((amount, roleIndex) =>
+      amount === null
+        ? []
+        : [
+            {
+              id: "official-2026-27-" + categoryIndex + "-" + roleIndex,
+              category,
+              role: OFFICIAL_RATE_ROLES[roleIndex],
+              amount,
+              retention: RETENTION_RATE,
+              locked: true,
+            },
+          ],
+    ),
 );
-const DEFAULT_RATE_SHEET: RateSheetMeta = { season: "2026/27", fileName: "Tarifas oficiales incluidas", importedAt: "", source: "included" };
+const DEFAULT_RATE_SHEET: RateSheetMeta = {
+  season: "2026/27",
+  fileName: "Tarifas oficiales incluidas",
+  importedAt: "",
+  source: "included",
+};
 const DEFAULT_EXPENSE_POLICY: ExpensePolicy = {
   season: "2026/27",
   diets: [
@@ -108,23 +384,42 @@ const DEFAULT_EXPENSE_POLICY: ExpensePolicy = {
     { id: "kmdeportebase", label: "Deporte base", amount: 0.26 },
   ],
 };
-const normalizeRateLeagueNames = (rates: Rate[]): Rate[] => rates.flatMap((rate) => {
-  const categories = rateCategoryLeagueNames(rate.category);
-  return categories.map((category, index) => ({
-    ...rate,
-    id: categories.length === 1 && category === rate.category ? rate.id : `${rate.id}-league-${index}`,
-    category,
-  }));
-});
+const normalizeRateLeagueNames = (rates: Rate[]): Rate[] =>
+  rates.flatMap((rate) => {
+    const categories = rateCategoryLeagueNames(rate.category);
+    return categories.map((category, index) => ({
+      ...rate,
+      id:
+        categories.length === 1 && category === rate.category
+          ? rate.id
+          : `${rate.id}-league-${index}`,
+      category,
+    }));
+  });
 const mergeOfficialRates = (rates: Rate[] = []): Rate[] => {
   const leagueNamedRates = normalizeRateLeagueNames(rates);
-  const importedOfficialRates = leagueNamedRates.filter((rate) => rate.id.startsWith("official-imported-") && rate.locked);
-  const officialRates = importedOfficialRates.length > 0 ? importedOfficialRates : OFFICIAL_RATES_2026_27;
+  const importedOfficialRates = leagueNamedRates.filter(
+    (rate) => rate.id.startsWith("official-imported-") && rate.locked,
+  );
+  const officialRates =
+    importedOfficialRates.length > 0
+      ? importedOfficialRates
+      : OFFICIAL_RATES_2026_27;
   const fixedKeys = new Set(officialRates.map(fixedRateKey));
   const customRates = leagueNamedRates
-    .filter((rate) => !rate.id.startsWith("official-") && !fixedKeys.has(fixedRateKey(rate)))
+    .filter(
+      (rate) =>
+        !rate.id.startsWith("official-") && !fixedKeys.has(fixedRateKey(rate)),
+    )
     .map((rate) => ({ ...rate, retention: RETENTION_RATE, locked: false }));
-  return [...officialRates.map((rate) => ({ ...rate, retention: RETENTION_RATE, locked: true })), ...customRates];
+  return [
+    ...officialRates.map((rate) => ({
+      ...rate,
+      retention: RETENTION_RATE,
+      locked: true,
+    })),
+    ...customRates,
+  ];
 };
 
 const sampleData: AppData = {
@@ -133,9 +428,57 @@ const sampleData: AppData = {
   seasonStatus: "open",
   seasonArchives: [],
   matches: [
-    { id: "p1", competition: "regional", date: "2026-09-19", time: "18:30", home: "CB Toledo", away: "Baloncesto Talavera", category: "Junior Autonómico", role: "Árbitro auxiliar", venue: "Pabellón Javier Lozano Cid", gross: 32, diets: 8, retention: 2, partners: ["Álvaro Martín"], video: true, status: "confirmado" },
-    { id: "p2", competition: "regional", date: "2026-09-20", time: "12:00", home: "CEI Toledo", away: "CB La Sagra", category: "Infantil Regional", role: "Árbitro", venue: "Pabellón IES Universidad Laboral", gross: 24, diets: 0, retention: 2, partners: ["Lucía Gómez"], video: false, status: "confirmado" },
-    { id: "p3", competition: "regional", date: "2026-09-12", time: "17:00", home: "CB Mora", away: "Basket Azuqueca", category: "Cadete Regional", role: "Árbitro", venue: "Pabellón Municipal de Mora", gross: 27.5, diets: 6, retention: 2, partners: ["Álvaro Martín"], video: false, status: "confirmado" },
+    {
+      id: "p1",
+      competition: "regional",
+      date: "2026-09-19",
+      time: "18:30",
+      home: "CB Toledo",
+      away: "Baloncesto Talavera",
+      category: "Junior Autonómico",
+      role: "Árbitro auxiliar",
+      venue: "Pabellón Javier Lozano Cid",
+      gross: 32,
+      diets: 8,
+      retention: 2,
+      partners: ["Álvaro Martín"],
+      video: true,
+      status: "confirmado",
+    },
+    {
+      id: "p2",
+      competition: "regional",
+      date: "2026-09-20",
+      time: "12:00",
+      home: "CEI Toledo",
+      away: "CB La Sagra",
+      category: "Infantil Regional",
+      role: "Árbitro",
+      venue: "Pabellón IES Universidad Laboral",
+      gross: 24,
+      diets: 0,
+      retention: 2,
+      partners: ["Lucía Gómez"],
+      video: false,
+      status: "confirmado",
+    },
+    {
+      id: "p3",
+      competition: "regional",
+      date: "2026-09-12",
+      time: "17:00",
+      home: "CB Mora",
+      away: "Basket Azuqueca",
+      category: "Cadete Regional",
+      role: "Árbitro",
+      venue: "Pabellón Municipal de Mora",
+      gross: 27.5,
+      diets: 6,
+      retention: 2,
+      partners: ["Álvaro Martín"],
+      video: false,
+      status: "confirmado",
+    },
   ],
   rates: mergeOfficialRates(),
   rateSheet: DEFAULT_RATE_SHEET,
@@ -143,19 +486,59 @@ const sampleData: AppData = {
   contacts: [],
   recordedGames: [],
   notificationSettings: DEFAULT_NOTIFICATION_SETTINGS,
-  settings: { name: "Árbitro", season: "2026/27", earningsGoal: 250, username: "", profileImage: "", shirtColors: DEFAULT_SHIRT_COLORS },
+  settings: {
+    name: "Árbitro",
+    season: "2026/27",
+    earningsGoal: 250,
+    username: "",
+    profileImage: "",
+    shirtColors: DEFAULT_SHIRT_COLORS,
+  },
 };
-const emptyData = (name: string): AppData => ({ dataVersion: 14, privacyNoticeVersion: CURRENT_PRIVACY_NOTICE_VERSION, privacyNoticeAcknowledgedAt: null, activeSeasonId: "season-2026-27", seasonStatus: "open", seasonArchives: [], matches: [], rates: mergeOfficialRates(), rateSheet: DEFAULT_RATE_SHEET, expensePolicy: DEFAULT_EXPENSE_POLICY, contacts: [], recordedGames: [], notificationSettings: DEFAULT_NOTIFICATION_SETTINGS, settings: { name, season: "2026/27", earningsGoal: 250, username: "", profileImage: "", shirtColors: DEFAULT_SHIRT_COLORS } });
+const emptyData = (name: string): AppData => ({
+  dataVersion: 14,
+  privacyNoticeVersion: CURRENT_PRIVACY_NOTICE_VERSION,
+  privacyNoticeAcknowledgedAt: null,
+  activeSeasonId: "season-2026-27",
+  seasonStatus: "open",
+  seasonArchives: [],
+  matches: [],
+  rates: mergeOfficialRates(),
+  rateSheet: DEFAULT_RATE_SHEET,
+  expensePolicy: DEFAULT_EXPENSE_POLICY,
+  contacts: [],
+  recordedGames: [],
+  notificationSettings: DEFAULT_NOTIFICATION_SETTINGS,
+  settings: {
+    name,
+    season: "2026/27",
+    earningsGoal: 250,
+    username: "",
+    profileImage: "",
+    shirtColors: DEFAULT_SHIRT_COLORS,
+  },
+});
 
 const nav: { id: View; label: string; icon: LucideIcon }[] = [
-  { id: "inicio", label: "Inicio", icon: Home }, { id: "importar", label: "Importar", icon: FileUp }, { id: "calendario", label: "Calendario", icon: CalendarDays }, { id: "regionales", label: "Regionales", icon: CalendarDays }, { id: "escolares", label: "Partidos escolares", icon: Trophy }, { id: "grabados", label: "Partidos grabados", icon: Video },
-  { id: "ganancias", label: "Ganancias", icon: BarChart3 }, { id: "arbitros", label: "Árbitros", icon: Users }, { id: "tarifas", label: "Tarifas", icon: CircleEuro }, { id: "ajustes", label: "Ajustes", icon: Settings },
+  { id: "inicio", label: "Inicio", icon: Home },
+  { id: "importar", label: "Importar", icon: FileUp },
+  { id: "calendario", label: "Calendario", icon: CalendarDays },
+  { id: "regionales", label: "Regionales", icon: CalendarDays },
+  { id: "escolares", label: "Partidos escolares", icon: Trophy },
+  { id: "grabados", label: "Partidos grabados", icon: Video },
+  { id: "ganancias", label: "Ganancias", icon: BarChart3 },
+  { id: "arbitros", label: "Árbitros", icon: Users },
+  { id: "tarifas", label: "Tarifas", icon: CircleEuro },
+  { id: "ajustes", label: "Ajustes", icon: Settings },
 ];
 const CURRENT_DATA_VERSION = 14;
 const SAMPLE_CONTACT_IDS = new Set(["a1", "a2"]);
 const seasonStartYearFromName = (value: string) => {
   const raw = value.match(/(\d{2,4})\s*\/\s*(\d{2,4})/);
-  if (!raw) return new Date().getMonth() >= 8 ? new Date().getFullYear() : new Date().getFullYear() - 1;
+  if (!raw)
+    return new Date().getMonth() >= 8
+      ? new Date().getFullYear()
+      : new Date().getFullYear() - 1;
   const parsed = Number(raw[1]);
   return parsed < 100 ? 2000 + parsed : parsed;
 };
@@ -163,16 +546,30 @@ const shortSeasonName = (value: string) => {
   const start = seasonStartYearFromName(value);
   return `${String(start).slice(-2)}/${String(start + 1).slice(-2)}`;
 };
-const fullSeasonName = (start: number) => `${start}/${String(start + 1).slice(-2)}`;
-const seasonIdFor = (name: string) => { const start = seasonStartYearFromName(name); return `season-${start}-${String(start + 1).slice(-2)}`; };
+const fullSeasonName = (start: number) =>
+  `${start}/${String(start + 1).slice(-2)}`;
+const seasonIdFor = (name: string) => {
+  const start = seasonStartYearFromName(name);
+  return `season-${start}-${String(start + 1).slice(-2)}`;
+};
 const normalizeMatch = (match: Match): Match => ({
   ...match,
-  shirtRecommendation: match.shirtRecommendation === "pink" ? "shirt1" : match.shirtRecommendation === "black" ? "shirt2" : match.shirtRecommendation,
-  competition: isSchoolCategory(match.category) || match.competition === "escolar" ? "escolar" : "regional",
+  shirtRecommendation:
+    match.shirtRecommendation === "pink"
+      ? "shirt1"
+      : match.shirtRecommendation === "black"
+        ? "shirt2"
+        : match.shirtRecommendation,
+  competition:
+    isSchoolCategory(match.category) || match.competition === "escolar"
+      ? "escolar"
+      : "regional",
   diets: Math.max(0, Number(match.diets) || 0),
   mileageKm: Math.max(0, Number(match.mileageKm) || 0),
   mileageRate: Math.max(0, Number(match.mileageRate) || 0),
-  friendly: (isSchoolCategory(match.category) || match.competition === "escolar") && Boolean(match.friendly),
+  friendly:
+    (isSchoolCategory(match.category) || match.competition === "escolar") &&
+    Boolean(match.friendly),
   retention: RETENTION_RATE,
 });
 const normalizeSeasonArchive = (season: SeasonArchive): SeasonArchive => ({
@@ -181,12 +578,19 @@ const normalizeSeasonArchive = (season: SeasonArchive): SeasonArchive => ({
   name: season.name || "2026/27",
   status: season.status === "open" ? "open" : "closed",
   matches: (season.matches || []).map(normalizeMatch),
-  rates: normalizeRateLeagueNames(season.rates || []).map((rate) => ({ ...rate, retention: RETENTION_RATE })),
+  rates: normalizeRateLeagueNames(season.rates || []).map((rate) => ({
+    ...rate,
+    retention: RETENTION_RATE,
+  })),
   rateSheet: season.rateSheet,
   expensePolicy: season.expensePolicy,
   contacts: season.contacts || [],
   recordedGames: season.recordedGames || [],
-  earningsGoal: Number.isFinite(Number(season.earningsGoal)) && Number(season.earningsGoal) >= 0 ? Number(season.earningsGoal) : 250,
+  earningsGoal:
+    Number.isFinite(Number(season.earningsGoal)) &&
+    Number(season.earningsGoal) >= 0
+      ? Number(season.earningsGoal)
+      : 250,
 });
 const normalizeData = (state: AppData): AppData => {
   const removeSampleContacts = (state.dataVersion || 0) < 1;
@@ -194,125 +598,252 @@ const normalizeData = (state: AppData): AppData => {
   return {
     ...state,
     dataVersion: CURRENT_DATA_VERSION,
-    privacyNoticeVersion: state.privacyNoticeVersion || CURRENT_PRIVACY_NOTICE_VERSION,
-    privacyNoticeAcknowledgedAt: state.privacyNoticeVersion ? state.privacyNoticeAcknowledgedAt ?? null : "legacy-user",
-    activeSeasonId: (state.dataVersion || 0) >= 5 && state.activeSeasonId ? state.activeSeasonId : seasonIdFor(state.settings?.season || "2026/27"),
-    seasonStatus: (state.dataVersion || 0) >= 5 && state.seasonStatus === "closed" ? "closed" : "open",
-    seasonArchives: ((state.dataVersion || 0) >= 5 ? state.seasonArchives || [] : []).map(normalizeSeasonArchive),
+    privacyNoticeVersion:
+      state.privacyNoticeVersion || CURRENT_PRIVACY_NOTICE_VERSION,
+    privacyNoticeAcknowledgedAt: state.privacyNoticeVersion
+      ? (state.privacyNoticeAcknowledgedAt ?? null)
+      : "legacy-user",
+    activeSeasonId:
+      (state.dataVersion || 0) >= 5 && state.activeSeasonId
+        ? state.activeSeasonId
+        : seasonIdFor(state.settings?.season || "2026/27"),
+    seasonStatus:
+      (state.dataVersion || 0) >= 5 && state.seasonStatus === "closed"
+        ? "closed"
+        : "open",
+    seasonArchives: ((state.dataVersion || 0) >= 5
+      ? state.seasonArchives || []
+      : []
+    ).map(normalizeSeasonArchive),
     matches: (state.matches || []).map(normalizeMatch),
     rates: mergeOfficialRates(state.rates || []),
     rateSheet: state.rateSheet || DEFAULT_RATE_SHEET,
     expensePolicy: state.expensePolicy || DEFAULT_EXPENSE_POLICY,
-    contacts: removeSampleContacts ? (state.contacts || []).filter((contact) => !SAMPLE_CONTACT_IDS.has(contact.id)) : (state.contacts || []),
+    contacts: removeSampleContacts
+      ? (state.contacts || []).filter(
+          (contact) => !SAMPLE_CONTACT_IDS.has(contact.id),
+        )
+      : state.contacts || [],
     notificationSettings: {
       enabled: Boolean(state.notificationSettings?.enabled),
-      reminderMinutes: [60, 180, 720, 1440, 2880].includes(Number(state.notificationSettings?.reminderMinutes)) ? Number(state.notificationSettings?.reminderMinutes) : DEFAULT_NOTIFICATION_SETTINGS.reminderMinutes,
+      reminderMinutes: [60, 180, 720, 1440, 2880].includes(
+        Number(state.notificationSettings?.reminderMinutes),
+      )
+        ? Number(state.notificationSettings?.reminderMinutes)
+        : DEFAULT_NOTIFICATION_SETTINGS.reminderMinutes,
     },
     settings: {
       name: state.settings?.name || "Árbitro",
       season: state.settings?.season || "2026/27",
-      earningsGoal: Number.isFinite(savedGoal) && savedGoal >= 0 ? savedGoal : 250,
+      earningsGoal:
+        Number.isFinite(savedGoal) && savedGoal >= 0 ? savedGoal : 250,
       username: state.settings?.username || "",
       profileImage: state.settings?.profileImage || "",
       shirtColors: {
-        shirt1: state.settings?.shirtColors?.shirt1 || state.settings?.shirtColors?.pink || DEFAULT_SHIRT_COLORS.shirt1,
-        shirt2: state.settings?.shirtColors?.shirt2 || state.settings?.shirtColors?.black || DEFAULT_SHIRT_COLORS.shirt2,
+        shirt1:
+          state.settings?.shirtColors?.shirt1 ||
+          state.settings?.shirtColors?.pink ||
+          DEFAULT_SHIRT_COLORS.shirt1,
+        shirt2:
+          state.settings?.shirtColors?.shirt2 ||
+          state.settings?.shirtColors?.black ||
+          DEFAULT_SHIRT_COLORS.shirt2,
       },
     },
   };
 };
-const money = (n: number) => new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(n);
-const payableTariff = (m: Match) => m.gross * (m.competition === "escolar" && m.friendly ? 0.5 : 1);
-const mileageAmount = (m: Match) => Math.max(0, Number(m.mileageKm) || 0) * Math.max(0, Number(m.mileageRate) || 0);
-const grossWithExpenses = (m: Match) => payableTariff(m) + m.diets + mileageAmount(m);
-const net = (m: Match) => payableTariff(m) * (1 - RETENTION_RATE / 100) + m.diets + mileageAmount(m);
-const financialBreakdown = (m: Match) => `${money(payableTariff(m))} tarifa${m.friendly ? " (amistoso 50 %)" : ""} + ${money(m.diets)} dietas + ${money(mileageAmount(m))} kilometraje`;
+const money = (n: number) =>
+  new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(
+    n,
+  );
+const payableTariff = (m: Match) =>
+  m.gross * (m.competition === "escolar" && m.friendly ? 0.5 : 1);
+const mileageAmount = (m: Match) =>
+  Math.max(0, Number(m.mileageKm) || 0) *
+  Math.max(0, Number(m.mileageRate) || 0);
+const grossWithExpenses = (m: Match) =>
+  payableTariff(m) + m.diets + mileageAmount(m);
+const net = (m: Match) =>
+  payableTariff(m) * (1 - RETENTION_RATE / 100) + m.diets + mileageAmount(m);
+const financialBreakdown = (m: Match) =>
+  `${money(payableTariff(m))} tarifa${m.friendly ? " (amistoso 50 %)" : ""} + ${money(m.diets)} dietas + ${money(mileageAmount(m))} kilometraje`;
 const normalizeRateField = rateTextKey;
 type Rgb = [number, number, number];
 const TEAM_COLOR_RGB: Array<[RegExp, Rgb]> = [
-  [/\b(blanc[oa]s?|white)\b/, [245, 245, 245]], [/\b(negr[oa]s?|black)\b/, [18, 24, 35]],
-  [/\b(rojas?|rojos?|red)\b/, [210, 35, 45]], [/\b(azul(?:es)?|blue)\b/, [35, 90, 205]],
-  [/\b(verdes?|green)\b/, [35, 150, 80]], [/\b(amarill[oa]s?|yellow)\b/, [245, 205, 30]],
-  [/\b(naranjas?|orange)\b/, [240, 125, 30]], [/\b(rosas?|fucsias?|pink)\b/, [235, 75, 145]],
-  [/\b(morad[oa]s?|violetas?|purpura|purple)\b/, [125, 65, 170]], [/\b(grises?|grey|gray)\b/, [125, 135, 145]],
-  [/\b(granates?|burdeos)\b/, [120, 25, 45]], [/\b(celestes?)\b/, [95, 190, 225]],
+  [/\b(blanc[oa]s?|white)\b/, [245, 245, 245]],
+  [/\b(negr[oa]s?|black)\b/, [18, 24, 35]],
+  [/\b(rojas?|rojos?|red)\b/, [210, 35, 45]],
+  [/\b(azul(?:es)?|blue)\b/, [35, 90, 205]],
+  [/\b(verdes?|green)\b/, [35, 150, 80]],
+  [/\b(amarill[oa]s?|yellow)\b/, [245, 205, 30]],
+  [/\b(naranjas?|orange)\b/, [240, 125, 30]],
+  [/\b(rosas?|fucsias?|pink)\b/, [235, 75, 145]],
+  [/\b(morad[oa]s?|violetas?|purpura|purple)\b/, [125, 65, 170]],
+  [/\b(grises?|grey|gray)\b/, [125, 135, 145]],
+  [/\b(granates?|burdeos)\b/, [120, 25, 45]],
+  [/\b(celestes?)\b/, [95, 190, 225]],
 ];
 const hexToRgb = (hex: string): Rgb => {
   const value = hex.replace("#", "");
-  const expanded = value.length === 3 ? value.split("").map((part) => part + part).join("") : value;
-  return [Number.parseInt(expanded.slice(0, 2), 16) || 0, Number.parseInt(expanded.slice(2, 4), 16) || 0, Number.parseInt(expanded.slice(4, 6), 16) || 0];
+  const expanded =
+    value.length === 3
+      ? value
+          .split("")
+          .map((part) => part + part)
+          .join("")
+      : value;
+  return [
+    Number.parseInt(expanded.slice(0, 2), 16) || 0,
+    Number.parseInt(expanded.slice(2, 4), 16) || 0,
+    Number.parseInt(expanded.slice(4, 6), 16) || 0,
+  ];
 };
 const parsedTeamColors = (value: string): Rgb[] => {
   const normalized = rateTextKey(value);
-  return TEAM_COLOR_RGB.flatMap(([pattern, rgb]) => pattern.test(normalized) ? [rgb] : []);
+  return TEAM_COLOR_RGB.flatMap(([pattern, rgb]) =>
+    pattern.test(normalized) ? [rgb] : [],
+  );
 };
-const colorDistance = (first: Rgb, second: Rgb) => Math.sqrt(2 * (first[0] - second[0]) ** 2 + 4 * (first[1] - second[1]) ** 2 + 3 * (first[2] - second[2]) ** 2);
-const shirtRecommendation = (homeColor: string, awayColor: string, shirts: ShirtColors): ShirtChoice | null => {
-  const teamColors = [...parsedTeamColors(homeColor), ...parsedTeamColors(awayColor)];
+const colorDistance = (first: Rgb, second: Rgb) =>
+  Math.sqrt(
+    2 * (first[0] - second[0]) ** 2 +
+      4 * (first[1] - second[1]) ** 2 +
+      3 * (first[2] - second[2]) ** 2,
+  );
+const shirtRecommendation = (
+  homeColor: string,
+  awayColor: string,
+  shirts: ShirtColors,
+): ShirtChoice | null => {
+  const teamColors = [
+    ...parsedTeamColors(homeColor),
+    ...parsedTeamColors(awayColor),
+  ];
   if (teamColors.length === 0) return null;
-  const contrast = (shirt: string) => Math.min(...teamColors.map((teamColor) => colorDistance(hexToRgb(shirt), teamColor)));
-  return contrast(shirts.shirt1) >= contrast(shirts.shirt2) ? "shirt1" : "shirt2";
+  const contrast = (shirt: string) =>
+    Math.min(
+      ...teamColors.map((teamColor) =>
+        colorDistance(hexToRgb(shirt), teamColor),
+      ),
+    );
+  return contrast(shirts.shirt1) >= contrast(shirts.shirt2)
+    ? "shirt1"
+    : "shirt2";
 };
-const shirtLabel = (shirt: ShirtChoice) => shirt === "shirt1" ? "Camiseta 1" : "Camiseta 2";
-const normalizedShirtChoice = (shirt?: Match["shirtRecommendation"]): ShirtChoice | undefined => shirt === "pink" ? "shirt1" : shirt === "black" ? "shirt2" : shirt;
-const importedCompetitionForCategory = (category: string, fallback: MatchCompetition): MatchCompetition => {
+const shirtLabel = (shirt: ShirtChoice) =>
+  shirt === "shirt1" ? "Camiseta 1" : "Camiseta 2";
+const normalizedShirtChoice = (
+  shirt?: Match["shirtRecommendation"],
+): ShirtChoice | undefined =>
+  shirt === "pink" ? "shirt1" : shirt === "black" ? "shirt2" : shirt;
+const importedCompetitionForCategory = (
+  category: string,
+  fallback: MatchCompetition,
+): MatchCompetition => {
   return isSchoolCategory(category) ? "escolar" : fallback;
 };
 const canonicalRole = (value: string) => {
   const role = normalizeRateField(value).replace(/[.]/g, "");
   const aliases: Record<string, string> = {
-    ap: "arbitro principal", arbitro: "arbitro principal", "arbitro principal": "arbitro principal",
-    aa: "arbitro auxiliar", "arbitro auxiliar": "arbitro auxiliar",
-    an: "anotador", anotador: "anotador",
-    cr: "cronometrador", cronometrador: "cronometrador",
-    op: "operador rll", "operador rll": "operador rll", "operador reloj lanzamiento": "operador rll", "operador reloj de lanzamiento": "operador rll",
-    aj: "ayudante de anotador", "ayudante de anotador": "ayudante de anotador",
-    "3a": "tercer arbitro", "tercer arbitro": "tercer arbitro",
-    ia: "informador arbitral", "informador arbitral": "informador arbitral",
-    ax: "auxiliar de mesa en pruebas", "auxiliar de mesa en pruebas": "auxiliar de mesa en pruebas",
-    ta: "tutor arbitral", "tutor arbitral": "tutor arbitral",
-    raf: "representante actividades federativas", "representante de actividades federativas": "representante actividades federativas",
-    it: "informador auxiliar de mesa", "informador auxiliar de mesa": "informador auxiliar de mesa",
-    ca: "consultor arbitral", "consultor arbitral": "consultor arbitral",
-    fi: "filmador", filmador: "filmador",
+    ap: "arbitro principal",
+    arbitro: "arbitro principal",
+    "arbitro principal": "arbitro principal",
+    aa: "arbitro auxiliar",
+    "arbitro auxiliar": "arbitro auxiliar",
+    an: "anotador",
+    anotador: "anotador",
+    cr: "cronometrador",
+    cronometrador: "cronometrador",
+    op: "operador rll",
+    "operador rll": "operador rll",
+    "operador reloj lanzamiento": "operador rll",
+    "operador reloj de lanzamiento": "operador rll",
+    aj: "ayudante de anotador",
+    "ayudante de anotador": "ayudante de anotador",
+    "3a": "tercer arbitro",
+    "tercer arbitro": "tercer arbitro",
+    ia: "informador arbitral",
+    "informador arbitral": "informador arbitral",
+    ax: "auxiliar de mesa en pruebas",
+    "auxiliar de mesa en pruebas": "auxiliar de mesa en pruebas",
+    ta: "tutor arbitral",
+    "tutor arbitral": "tutor arbitral",
+    raf: "representante actividades federativas",
+    "representante de actividades federativas":
+      "representante actividades federativas",
+    it: "informador auxiliar de mesa",
+    "informador auxiliar de mesa": "informador auxiliar de mesa",
+    ca: "consultor arbitral",
+    "consultor arbitral": "consultor arbitral",
+    fi: "filmador",
+    filmador: "filmador",
   };
   return aliases[role] || role;
 };
-const normalizeUsername = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
-const resizeProfileImage = (file: File) => new Promise<string>((resolve, reject) => {
-  if (!file.type.startsWith("image/")) { reject(new Error("Selecciona una imagen JPG, PNG o WebP.")); return; }
-  if (file.size > 8 * 1024 * 1024) { reject(new Error("La imagen no puede superar 8 MB.")); return; }
-  const reader = new FileReader();
-  reader.onerror = () => reject(new Error("No se pudo leer la imagen."));
-  reader.onload = () => {
-    const image = new Image();
-    image.onerror = () => reject(new Error("No se pudo procesar la imagen."));
-    image.onload = () => {
-      const side = Math.min(image.naturalWidth, image.naturalHeight);
-      const sourceX = (image.naturalWidth - side) / 2;
-      const sourceY = (image.naturalHeight - side) / 2;
-      const canvas = document.createElement("canvas");
-      canvas.width = 256; canvas.height = 256;
-      const context = canvas.getContext("2d");
-      if (!context) { reject(new Error("No se pudo preparar la imagen.")); return; }
-      context.drawImage(image, sourceX, sourceY, side, side, 0, 0, 256, 256);
-      resolve(canvas.toDataURL("image/jpeg", 0.84));
+const normalizeUsername = (value: string) =>
+  value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+const resizeProfileImage = (file: File) =>
+  new Promise<string>((resolve, reject) => {
+    if (!file.type.startsWith("image/")) {
+      reject(new Error("Selecciona una imagen JPG, PNG o WebP."));
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      reject(new Error("La imagen no puede superar 8 MB."));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("No se pudo leer la imagen."));
+    reader.onload = () => {
+      const image = new Image();
+      image.onerror = () => reject(new Error("No se pudo procesar la imagen."));
+      image.onload = () => {
+        const side = Math.min(image.naturalWidth, image.naturalHeight);
+        const sourceX = (image.naturalWidth - side) / 2;
+        const sourceY = (image.naturalHeight - side) / 2;
+        const canvas = document.createElement("canvas");
+        canvas.width = 256;
+        canvas.height = 256;
+        const context = canvas.getContext("2d");
+        if (!context) {
+          reject(new Error("No se pudo preparar la imagen."));
+          return;
+        }
+        context.drawImage(image, sourceX, sourceY, side, side, 0, 0, 256, 256);
+        resolve(canvas.toDataURL("image/jpeg", 0.84));
+      };
+      image.src = String(reader.result);
     };
-    image.src = String(reader.result);
-  };
-  reader.readAsDataURL(file);
-});
+    reader.readAsDataURL(file);
+  });
 const extractPdfTextPages = async (file: File) => {
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
-  pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/legacy/build/pdf.worker.min.mjs", import.meta.url).pathname;
-  const pdf = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
+  pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+    "pdfjs-dist/legacy/build/pdf.worker.min.mjs",
+    import.meta.url,
+  ).pathname;
+  const pdf = await pdfjs.getDocument({ data: await file.arrayBuffer() })
+    .promise;
   const pages: PdfTextItem[][] = [];
   for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
     const content = await (await pdf.getPage(pageNumber)).getTextContent();
-    pages.push(content.items.flatMap((item) => {
-      if (!("str" in item) || !item.str.trim()) return [];
-      return [{ page: pageNumber, x: item.transform[4], y: item.transform[5], text: item.str }];
-    }));
+    pages.push(
+      content.items.flatMap((item) => {
+        if (!("str" in item) || !item.str.trim()) return [];
+        return [
+          {
+            page: pageNumber,
+            x: item.transform[4],
+            y: item.transform[5],
+            text: item.str,
+          },
+        ];
+      }),
+    );
   }
   return pages;
 };
@@ -320,38 +851,130 @@ const findSavedRate = (rates: Rate[], category: string, role: string) => {
   const normalizedCategory = canonicalRateCategory(category);
   const normalizedRole = normalizeRateField(role);
   if (!normalizedCategory || !normalizedRole) return undefined;
-  return rates.find((rate) => canonicalRateCategory(rate.category) === normalizedCategory && canonicalRole(rate.role) === canonicalRole(normalizedRole));
+  return rates.find(
+    (rate) =>
+      canonicalRateCategory(rate.category) === normalizedCategory &&
+      canonicalRole(rate.role) === canonicalRole(normalizedRole),
+  );
 };
 const applySavedRate = (match: Match, rates: Rate[]): Match => {
   const savedRate = findSavedRate(rates, match.category, match.role);
-  return savedRate ? { ...match, gross: savedRate.amount, retention: RETENTION_RATE } : match;
+  return savedRate
+    ? { ...match, gross: savedRate.amount, retention: RETENTION_RATE }
+    : match;
 };
-const dateLabel = (iso: string) => new Intl.DateTimeFormat("es-ES", { weekday: "short", day: "numeric", month: "short" }).format(new Date(`${iso}T12:00:00`));
-const localIsoDate = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-const capitalize = (value: string) => value.charAt(0).toLocaleUpperCase("es-ES") + value.slice(1);
-const matchCountLabel = (count: number) => `${count} ${count === 1 ? "partido" : "partidos"}`;
+const dateLabel = (iso: string) =>
+  new Intl.DateTimeFormat("es-ES", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  }).format(new Date(`${iso}T12:00:00`));
+const localIsoDate = (date: Date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+const capitalize = (value: string) =>
+  value.charAt(0).toLocaleUpperCase("es-ES") + value.slice(1);
+const matchCountLabel = (count: number) =>
+  `${count} ${count === 1 ? "partido" : "partidos"}`;
 const urlBase64ToUint8Array = (value: string) => {
-  const padding = "=".repeat((4 - value.length % 4) % 4);
+  const padding = "=".repeat((4 - (value.length % 4)) % 4);
   const raw = atob((value + padding).replace(/-/g, "+").replace(/_/g, "/"));
   return Uint8Array.from([...raw].map((character) => character.charCodeAt(0)));
 };
 const annotationGroups = [
-  { name: "Mecánica arbitral", color: "#f47b20", items: ["Ángulo de visión", "Distancia a la jugada", "Posicionamiento", "Rotación"] },
+  {
+    name: "Mecánica arbitral",
+    color: "#f47b20",
+    items: [
+      "Ángulo de visión",
+      "Distancia a la jugada",
+      "Posicionamiento",
+      "Rotación",
+    ],
+  },
   { name: "RLL", color: "#9656dc", items: ["Mantener", "Reiniciar"] },
-  { name: "Faltas", color: "#e43c68", items: ["Bloqueo ilegal", "Empuja", "Golpea", "Golpea en AOS", "Golpea en la cabeza", "No call", "Otras"] },
-  { name: "Señalización", color: "#2eaf55", items: ["Comunicación", "Correcta", "Incorrecta"] },
-  { name: "Transiciones", color: "#df2abb", items: ["Nuevo cabeza", "Nuevo cola"] },
-  { name: "Violaciones", color: "#a84bc0", items: ["3 segundos en zona", "Avance ilegal", "Campo atrás", "Doble regate"] },
-  { name: "Dudas habituales", color: "#0b5cff", items: ["¿Pie intencionado?", "¿Fuera de banda?", "¿Interferencia o interposición?", "¿Falta en acción de tiro?", "¿Falta antideportiva?", "¿Falta técnica?", "¿8 segundos?", "¿24 o 14 segundos?", "¿Saque correcto?", "¿Canasta fuera de tiempo?", "¿A quién señala la flecha de posesión alterna?"] },
+  {
+    name: "Faltas",
+    color: "#e43c68",
+    items: [
+      "Bloqueo ilegal",
+      "Empuja",
+      "Golpea",
+      "Golpea en AOS",
+      "Golpea en la cabeza",
+      "No call",
+      "Otras",
+    ],
+  },
+  {
+    name: "Señalización",
+    color: "#2eaf55",
+    items: ["Comunicación", "Correcta", "Incorrecta"],
+  },
+  {
+    name: "Transiciones",
+    color: "#df2abb",
+    items: ["Nuevo cabeza", "Nuevo cola"],
+  },
+  {
+    name: "Violaciones",
+    color: "#a84bc0",
+    items: [
+      "3 segundos en zona",
+      "Avance ilegal",
+      "Campo atrás",
+      "Doble regate",
+    ],
+  },
+  {
+    name: "Dudas habituales",
+    color: "#0b5cff",
+    items: [
+      "¿Pie intencionado?",
+      "¿Fuera de banda?",
+      "¿Interferencia o interposición?",
+      "¿Falta en acción de tiro?",
+      "¿Falta antideportiva?",
+      "¿Falta técnica?",
+      "¿8 segundos?",
+      "¿24 o 14 segundos?",
+      "¿Saque correcto?",
+      "¿Canasta fuera de tiempo?",
+      "¿A quién señala la flecha de posesión alterna?",
+    ],
+  },
 ];
 const parseYouTubeId = (value: string) => {
-  try { const url = new URL(value.trim()); if (url.hostname.includes("youtu.be")) return url.pathname.slice(1).split("/")[0]; if (url.hostname.includes("youtube.com")) return url.searchParams.get("v") || url.pathname.match(/\/(?:embed|shorts|live)\/([^/?]+)/)?.[1] || ""; } catch { return ""; }
+  try {
+    const url = new URL(value.trim());
+    if (url.hostname.includes("youtu.be"))
+      return url.pathname.slice(1).split("/")[0];
+    if (url.hostname.includes("youtube.com"))
+      return (
+        url.searchParams.get("v") ||
+        url.pathname.match(/\/(?:embed|shorts|live)\/([^/?]+)/)?.[1] ||
+        ""
+      );
+  } catch {
+    return "";
+  }
   return "";
 };
-const timeLabel = (seconds: number) => `${Math.floor(seconds / 60).toString().padStart(2, "0")}:${Math.floor(seconds % 60).toString().padStart(2, "0")}`;
-const videoAt = (game: RecordedGame, seconds: number) => `https://www.youtube.com/watch?v=${encodeURIComponent(game.youtubeId)}&t=${Math.max(0, Math.floor(seconds) - 3)}s`;
-const makeId = () => typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-const seasonSnapshot = (state: AppData, status: SeasonStatus = state.seasonStatus): SeasonArchive => ({
+const timeLabel = (seconds: number) =>
+  `${Math.floor(seconds / 60)
+    .toString()
+    .padStart(2, "0")}:${Math.floor(seconds % 60)
+    .toString()
+    .padStart(2, "0")}`;
+const videoAt = (game: RecordedGame, seconds: number) =>
+  `https://www.youtube.com/watch?v=${encodeURIComponent(game.youtubeId)}&t=${Math.max(0, Math.floor(seconds) - 3)}s`;
+const makeId = () =>
+  typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+const seasonSnapshot = (
+  state: AppData,
+  status: SeasonStatus = state.seasonStatus,
+): SeasonArchive => ({
   id: state.activeSeasonId,
   name: state.settings.season,
   status,
@@ -364,118 +987,654 @@ const seasonSnapshot = (state: AppData, status: SeasonStatus = state.seasonStatu
   earningsGoal: state.settings.earningsGoal,
   ...(status === "closed" ? { closedAt: new Date().toISOString() } : {}),
 });
-const sameContact = (contact: Contact, official: PdfOfficial) => Boolean(
-  (contact.licenseId && official.licenseId && contact.licenseId === official.licenseId)
-  || normalizeRateField(contact.name) === normalizeRateField(official.name)
-);
+const sameContact = (contact: Contact, official: PdfOfficial) =>
+  Boolean(
+    (contact.licenseId &&
+      official.licenseId &&
+      contact.licenseId === official.licenseId) ||
+      normalizeRateField(contact.name) === normalizeRateField(official.name),
+  );
 const uniqueImportedOfficials = (parsed: ParsedDesignationPdf) => {
   const officials: PdfOfficial[] = [];
-  parsed.matches.flatMap((match) => match.officials).forEach((official) => {
-    if (official.licenseId && official.licenseId === parsed.designatedLicenseId) return;
-    if (!officials.some((saved) => (saved.licenseId && official.licenseId && saved.licenseId === official.licenseId) || normalizeRateField(saved.name) === normalizeRateField(official.name))) officials.push(official);
-  });
+  parsed.matches
+    .flatMap((match) => match.officials)
+    .forEach((official) => {
+      if (
+        official.licenseId &&
+        official.licenseId === parsed.designatedLicenseId
+      )
+        return;
+      if (
+        !officials.some(
+          (saved) =>
+            (saved.licenseId &&
+              official.licenseId &&
+              saved.licenseId === official.licenseId) ||
+            normalizeRateField(saved.name) ===
+              normalizeRateField(official.name),
+        )
+      )
+        officials.push(official);
+    });
   return officials;
 };
-const mergeImportedOfficials = (contacts: Contact[], officials: PdfOfficial[]) => {
-  let added = 0; let updated = 0;
+const mergeImportedOfficials = (
+  contacts: Contact[],
+  officials: PdfOfficial[],
+) => {
+  let added = 0;
+  let updated = 0;
   const merged = [...contacts];
   officials.forEach((official) => {
     const index = merged.findIndex((contact) => sameContact(contact, official));
     if (index === -1) {
-      merged.push({ id: makeId(), name: official.name, phone: official.phone, role: official.role, licenseId: official.licenseId || undefined, city: official.city || undefined });
+      merged.push({
+        id: makeId(),
+        name: official.name,
+        phone: official.phone,
+        role: official.role,
+        licenseId: official.licenseId || undefined,
+        city: official.city || undefined,
+      });
       added += 1;
       return;
     }
     const current = merged[index];
-    const next = { ...current, phone: current.phone || official.phone, role: current.role === "Árbitro" ? official.role : current.role, licenseId: current.licenseId || official.licenseId || undefined, city: current.city || official.city || undefined };
-    if (JSON.stringify(next) !== JSON.stringify(current)) { merged[index] = next; updated += 1; }
+    const next = {
+      ...current,
+      phone: current.phone || official.phone,
+      role: current.role === "Árbitro" ? official.role : current.role,
+      licenseId: current.licenseId || official.licenseId || undefined,
+      city: current.city || official.city || undefined,
+    };
+    if (JSON.stringify(next) !== JSON.stringify(current)) {
+      merged[index] = next;
+      updated += 1;
+    }
   });
   return { contacts: merged, added, updated };
 };
-function saveBlob(blob: Blob, name: string) { const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
-async function assetDataUrl(path: string) { const response = await fetch(path); if (!response.ok) throw new Error("No se pudo cargar el recurso"); const blob = await response.blob(); return await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = () => reject(reader.error); reader.readAsDataURL(blob); }); }
-function MatchCalendar({ matches, cursor, onChange }: { matches: Match[]; cursor: Date; onChange: (date: Date) => void }) {
-  const year = cursor.getFullYear(); const month = cursor.getMonth();
+function saveBlob(blob: Blob, name: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+async function assetDataUrl(path: string) {
+  const response = await fetch(path);
+  if (!response.ok) throw new Error("No se pudo cargar el recurso");
+  const blob = await response.blob();
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+function MatchCalendar({
+  matches,
+  cursor,
+  onChange,
+}: {
+  matches: Match[];
+  cursor: Date;
+  onChange: (date: Date) => void;
+}) {
+  const year = cursor.getFullYear();
+  const month = cursor.getMonth();
   const monthKey = `${year}-${String(month + 1).padStart(2, "0")}`;
   const todayKey = localIsoDate(new Date());
   const firstWeekday = (new Date(year, month, 1).getDay() + 6) % 7;
   const dayCount = new Date(year, month + 1, 0).getDate();
   const cellCount = Math.ceil((firstWeekday + dayCount) / 7) * 7;
-  const monthMatches = matches.filter((match) => match.date.startsWith(monthKey)).sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`));
+  const monthMatches = matches
+    .filter((match) => match.date.startsWith(monthKey))
+    .sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`));
   const byDay = new Map<string, Match[]>();
-  monthMatches.forEach((match) => byDay.set(match.date, [...(byDay.get(match.date) || []), match]));
-  const moveMonth = (offset: number) => onChange(new Date(year, month + offset, 1, 12));
-  return <div className="calendar-layout">
-    <section className="panel calendar-panel">
-      <div className="calendar-toolbar"><div><p>CALENDARIO DE PARTIDOS</p><h2>{capitalize(new Intl.DateTimeFormat("es-ES", { month: "long", year: "numeric" }).format(cursor))}</h2></div><div className="calendar-controls"><button type="button" onClick={() => moveMonth(-1)} aria-label="Mes anterior"><ChevronLeft /></button><button type="button" className="calendar-today" onClick={() => onChange(new Date())}>Hoy</button><button type="button" onClick={() => moveMonth(1)} aria-label="Mes siguiente"><ChevronRight /></button></div></div>
-      <div className="calendar-weekdays" aria-hidden="true">{["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].map((day) => <span key={day}>{day}</span>)}</div>
-      <div className="calendar-grid">{Array.from({ length: cellCount }, (_, index) => {
-        const day = index - firstWeekday + 1;
-        if (day < 1 || day > dayCount) return <div className="calendar-day muted" key={`empty-${index}`} />;
-        const date = `${monthKey}-${String(day).padStart(2, "0")}`; const dayMatches = byDay.get(date) || [];
-        return <article className={`calendar-day ${date === todayKey ? "today" : ""}`} key={date}><span className="calendar-number">{day}</span><div className="calendar-events">{dayMatches.slice(0, 3).map((match) => <div className={`calendar-event ${match.competition}`} key={match.id} title={`${match.time} · ${match.home} – ${match.away}`}><strong>{match.time}</strong><span>{match.home} – {match.away}</span></div>)}{dayMatches.length > 3 && <small>+{dayMatches.length - 3} más</small>}</div></article>;
-      })}</div>
-    </section>
-    <aside className="panel calendar-agenda"><div className="panel-heading"><div><p>AGENDA DEL MES</p><h3>{matchCountLabel(monthMatches.length)}</h3></div><CalendarDays /></div>{monthMatches.length === 0 ? <div className="calendar-empty">No hay partidos este mes.</div> : <div className="calendar-agenda-list">{monthMatches.map((match) => <article key={match.id}><span className={`calendar-agenda-date ${match.competition}`}><strong>{new Date(`${match.date}T12:00`).getDate()}</strong><small>{capitalize(new Intl.DateTimeFormat("es-ES", { weekday: "short" }).format(new Date(`${match.date}T12:00`)).replace(".", ""))}</small></span><div><strong>{match.home} – {match.away}</strong><span><Clock3 /> {match.time} · {match.category}</span><small><MapPin /> {match.venue || "Lugar pendiente"}</small></div></article>)}</div>}</aside>
-  </div>;
+  monthMatches.forEach((match) =>
+    byDay.set(match.date, [...(byDay.get(match.date) || []), match]),
+  );
+  const moveMonth = (offset: number) =>
+    onChange(new Date(year, month + offset, 1, 12));
+  return (
+    <div className="calendar-layout">
+      <section className="panel calendar-panel">
+        <div className="calendar-toolbar">
+          <div>
+            <p>CALENDARIO DE PARTIDOS</p>
+            <h2>
+              {capitalize(
+                new Intl.DateTimeFormat("es-ES", {
+                  month: "long",
+                  year: "numeric",
+                }).format(cursor),
+              )}
+            </h2>
+          </div>
+          <div className="calendar-controls">
+            <button
+              type="button"
+              onClick={() => moveMonth(-1)}
+              aria-label="Mes anterior"
+            >
+              <ChevronLeft />
+            </button>
+            <button
+              type="button"
+              className="calendar-today"
+              onClick={() => onChange(new Date())}
+            >
+              Hoy
+            </button>
+            <button
+              type="button"
+              onClick={() => moveMonth(1)}
+              aria-label="Mes siguiente"
+            >
+              <ChevronRight />
+            </button>
+          </div>
+        </div>
+        <div className="calendar-weekdays" aria-hidden="true">
+          {["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].map((day) => (
+            <span key={day}>{day}</span>
+          ))}
+        </div>
+        <div className="calendar-grid">
+          {Array.from({ length: cellCount }, (_, index) => {
+            const day = index - firstWeekday + 1;
+            if (day < 1 || day > dayCount)
+              return (
+                <div className="calendar-day muted" key={`empty-${index}`} />
+              );
+            const date = `${monthKey}-${String(day).padStart(2, "0")}`;
+            const dayMatches = byDay.get(date) || [];
+            return (
+              <article
+                className={`calendar-day ${date === todayKey ? "today" : ""}`}
+                key={date}
+              >
+                <span className="calendar-number">{day}</span>
+                <div className="calendar-events">
+                  {dayMatches.slice(0, 3).map((match) => (
+                    <div
+                      className={`calendar-event ${match.competition}`}
+                      key={match.id}
+                      title={`${match.time} · ${match.home} – ${match.away}`}
+                    >
+                      <strong>{match.time}</strong>
+                      <span>
+                        {match.home} – {match.away}
+                      </span>
+                    </div>
+                  ))}
+                  {dayMatches.length > 3 && (
+                    <small>+{dayMatches.length - 3} más</small>
+                  )}
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+      <aside className="panel calendar-agenda">
+        <div className="panel-heading">
+          <div>
+            <p>AGENDA DEL MES</p>
+            <h3>{matchCountLabel(monthMatches.length)}</h3>
+          </div>
+          <CalendarDays />
+        </div>
+        {monthMatches.length === 0 ? (
+          <div className="calendar-empty">No hay partidos este mes.</div>
+        ) : (
+          <div className="calendar-agenda-list">
+            {monthMatches.map((match) => (
+              <article key={match.id}>
+                <span className={`calendar-agenda-date ${match.competition}`}>
+                  <strong>{new Date(`${match.date}T12:00`).getDate()}</strong>
+                  <small>
+                    {capitalize(
+                      new Intl.DateTimeFormat("es-ES", { weekday: "short" })
+                        .format(new Date(`${match.date}T12:00`))
+                        .replace(".", ""),
+                    )}
+                  </small>
+                </span>
+                <div>
+                  <strong>
+                    {match.home} – {match.away}
+                  </strong>
+                  <span>
+                    <Clock3 /> {match.time} · {match.category}
+                  </span>
+                  <small>
+                    <MapPin /> {match.venue || "Lugar pendiente"}
+                  </small>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </aside>
+    </div>
+  );
 }
 
-function MatchDialog({ competition, rates, expensePolicy, onAdd }: { competition: MatchCompetition; rates: Rate[]; expensePolicy: ExpensePolicy; onAdd: (m: Match) => void }) {
-  const [open, setOpen] = useState(false); const [form, setForm] = useState({ date: "2026-09-26", time: "18:00", home: "", away: "", category: "", role: "Árbitro", venue: "", gross: "0", dietOptionId: "none", mileageOptionId: "none", mileageKm: "", friendly: false });
+function MatchDialog({
+  competition,
+  rates,
+  expensePolicy,
+  onAdd,
+}: {
+  competition: MatchCompetition;
+  rates: Rate[];
+  expensePolicy: ExpensePolicy;
+  onAdd: (m: Match) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({
+    date: "2026-09-26",
+    time: "18:00",
+    home: "",
+    away: "",
+    category: "",
+    role: "Árbitro",
+    venue: "",
+    gross: "0",
+    dietOptionId: "none",
+    mileageOptionId: "none",
+    mileageKm: "",
+    friendly: false,
+  });
   const [rateMessage, setRateMessage] = useState("");
-  const set = (key: string, value: string) => { setForm((f) => ({ ...f, [key]: value })); if (key === "category" || key === "role") setRateMessage(""); };
-  const setMileageOption = (value: string) => setForm((current) => ({ ...current, mileageOptionId: value, mileageKm: value === "none" ? "" : current.mileageKm }));
-  const setMileageKm = (value: string) => setForm((current) => ({ ...current, mileageKm: value, mileageOptionId: current.mileageOptionId === "none" ? expensePolicy.mileage[0]?.id || "none" : current.mileageOptionId }));
-  const importRate = () => { const savedRate = findSavedRate(rates, form.category, form.role); if (!savedRate) { setRateMessage("No hay una tarifa guardada para esa categoría y función."); return; } setForm((current) => ({ ...current, gross: String(savedRate.amount) })); setRateMessage(`Tarifa importada: ${money(savedRate.amount)}`); };
-  const changeOpen = (nextOpen: boolean) => { if (!nextOpen) setRateMessage(""); setOpen(nextOpen); };
-  const selectedDiet = expensePolicy.diets.find((option) => option.id === form.dietOptionId);
-  const selectedMileage = expensePolicy.mileage.find((option) => option.id === form.mileageOptionId);
+  const set = (key: string, value: string) => {
+    setForm((f) => ({ ...f, [key]: value }));
+    if (key === "category" || key === "role") setRateMessage("");
+  };
+  const setMileageOption = (value: string) =>
+    setForm((current) => ({
+      ...current,
+      mileageOptionId: value,
+      mileageKm: value === "none" ? "" : current.mileageKm,
+    }));
+  const setMileageKm = (value: string) =>
+    setForm((current) => ({
+      ...current,
+      mileageKm: value,
+      mileageOptionId:
+        current.mileageOptionId === "none"
+          ? expensePolicy.mileage[0]?.id || "none"
+          : current.mileageOptionId,
+    }));
+  const importRate = () => {
+    const savedRate = findSavedRate(rates, form.category, form.role);
+    if (!savedRate) {
+      setRateMessage(
+        "No hay una tarifa guardada para esa categoría y función.",
+      );
+      return;
+    }
+    setForm((current) => ({ ...current, gross: String(savedRate.amount) }));
+    setRateMessage(`Tarifa importada: ${money(savedRate.amount)}`);
+  };
+  const changeOpen = (nextOpen: boolean) => {
+    if (!nextOpen) setRateMessage("");
+    setOpen(nextOpen);
+  };
+  const selectedDiet = expensePolicy.diets.find(
+    (option) => option.id === form.dietOptionId,
+  );
+  const selectedMileage = expensePolicy.mileage.find(
+    (option) => option.id === form.mileageOptionId,
+  );
   const matchedRate = findSavedRate(rates, form.category, form.role);
-  const baseTariff = matchedRate?.amount ?? Math.max(0, Number(form.gross) || 0);
-  const previewTariff = baseTariff * (competition === "escolar" && form.friendly ? 0.5 : 1);
-  const previewMileage = Math.max(0, Number(form.mileageKm) || 0) * (selectedMileage?.amount || 0);
-  const previewNet = previewTariff * (1 - RETENTION_RATE / 100) + (selectedDiet?.amount || 0) + previewMileage;
+  const baseTariff =
+    matchedRate?.amount ?? Math.max(0, Number(form.gross) || 0);
+  const previewTariff =
+    baseTariff * (competition === "escolar" && form.friendly ? 0.5 : 1);
+  const previewMileage =
+    Math.max(0, Number(form.mileageKm) || 0) * (selectedMileage?.amount || 0);
+  const previewNet =
+    previewTariff * (1 - RETENTION_RATE / 100) +
+    (selectedDiet?.amount || 0) +
+    previewMileage;
   const submit = () => {
     if (!form.home.trim() || !form.away.trim()) return;
-    const match: Match = { id: makeId(), competition, date: form.date, time: form.time, home: form.home.trim(), away: form.away.trim(), category: form.category.trim() || "Sin categoría", role: form.role.trim() || "Árbitro", venue: form.venue.trim(), gross: baseTariff, diets: selectedDiet?.amount || 0, dietOptionId: selectedDiet?.id, dietLabel: selectedDiet?.label, mileageKm: selectedMileage ? Math.max(0, Number(form.mileageKm) || 0) : 0, mileageRate: selectedMileage?.amount || 0, mileageOptionId: selectedMileage?.id, mileageLabel: selectedMileage?.label, friendly: competition === "escolar" && form.friendly, retention: RETENTION_RATE, partners: [], video: false, status: "confirmado" };
-    onAdd(match); setRateMessage(""); setOpen(false);
+    const match: Match = {
+      id: makeId(),
+      competition,
+      date: form.date,
+      time: form.time,
+      home: form.home.trim(),
+      away: form.away.trim(),
+      category: form.category.trim() || "Sin categoría",
+      role: form.role.trim() || "Árbitro",
+      venue: form.venue.trim(),
+      gross: baseTariff,
+      diets: selectedDiet?.amount || 0,
+      dietOptionId: selectedDiet?.id,
+      dietLabel: selectedDiet?.label,
+      mileageKm: selectedMileage ? Math.max(0, Number(form.mileageKm) || 0) : 0,
+      mileageRate: selectedMileage?.amount || 0,
+      mileageOptionId: selectedMileage?.id,
+      mileageLabel: selectedMileage?.label,
+      friendly: competition === "escolar" && form.friendly,
+      retention: RETENTION_RATE,
+      partners: [],
+      video: false,
+      status: "confirmado",
+    };
+    onAdd(match);
+    setRateMessage("");
+    setOpen(false);
   };
-  return <Dialog open={open} onOpenChange={changeOpen}><DialogTrigger asChild><Button className="primary-btn"><Plus /> Nuevo partido</Button></DialogTrigger><DialogContent className="dialog-card"><DialogHeader><DialogTitle>Añadir partido</DialogTitle><DialogDescription>Regístralo manualmente si todavía no tienes el PDF.</DialogDescription></DialogHeader><div className="dialog-scroll"><div className="form-grid">
-    <label>Fecha<Input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} /></label><label>Hora<Input type="time" value={form.time} onChange={(e) => set("time", e.target.value)} /></label>
-    <label>Equipo local<Input placeholder="Equipo local" value={form.home} onChange={(e) => set("home", e.target.value)} /></label><label>Equipo visitante<Input placeholder="Equipo visitante" value={form.away} onChange={(e) => set("away", e.target.value)} /></label>
-    <label>Categoría<Input placeholder="Junior Autonómico" value={form.category} onChange={(e) => set("category", e.target.value)} /></label><label>Función<Input value={form.role} onChange={(e) => set("role", e.target.value)} /></label>
-    <label className="wide">Pabellón<Input placeholder="Pabellón" value={form.venue} onChange={(e) => set("venue", e.target.value)} /></label><label>Tarifa base<Input type="number" min="0" step="0.01" value={form.gross} onChange={(e) => set("gross", e.target.value)} /></label>
-    <div className="rate-import-control"><span>Tarifa guardada</span><Button type="button" variant="outline" onClick={importRate}><CircleEuro /> Importar tarifa guardada</Button>{rateMessage && <p className="form-helper">{rateMessage}</p>}</div>
-    {competition === "escolar" && <label className="wide friendly-toggle"><input type="checkbox" checked={form.friendly} onChange={(event) => setForm((current) => ({ ...current, friendly: event.target.checked }))} /><span><strong>Partido amistoso</strong><small>Se abonará el 50 % de la tarifa base. Dietas y kilometraje se mantienen íntegros.</small></span></label>}
-    <details className="wide expense-submenu" open><summary>Dietas y kilometraje</summary><div className="expense-fields">
-      <label>Dieta<NativeSelect className="w-full" value={form.dietOptionId} onChange={(event) => set("dietOptionId", event.target.value)}><NativeSelectOption value="none">Sin dieta</NativeSelectOption>{expensePolicy.diets.map((option) => <NativeSelectOption key={option.id} value={option.id}>{option.label} · {money(option.amount)}</NativeSelectOption>)}</NativeSelect></label>
-      <label>Desplazamiento en coche<NativeSelect className="w-full" value={form.mileageOptionId} onChange={(event) => setMileageOption(event.target.value)}><NativeSelectOption value="none">No llevo coche</NativeSelectOption>{expensePolicy.mileage.map((option) => <NativeSelectOption key={option.id} value={option.id}>{option.label} · {money(option.amount)}/km</NativeSelectOption>)}</NativeSelect></label>
-      <label>Kilómetros totales<Input type="number" inputMode="numeric" min="0" step="1" value={form.mileageKm} onChange={(event) => setMileageKm(event.target.value)} placeholder="Escribe los km" /><small>Si escribes kilómetros sin elegir modalidad, se aplicará Individual.</small></label>
-      <div className="expense-preview"><span>Tarifa computada <strong>{money(previewTariff)}</strong></span><span>Gastos <strong>{money((selectedDiet?.amount || 0) + previewMileage)}</strong></span><span>Neto estimado <strong>{money(previewNet)}</strong></span></div>
-    </div></details>
-  </div></div><DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button><Button className="primary-btn" onClick={submit}>Guardar partido</Button></DialogFooter></DialogContent></Dialog>;
+  return (
+    <Dialog open={open} onOpenChange={changeOpen}>
+      <DialogTrigger asChild>
+        <Button className="primary-btn">
+          <Plus /> Nuevo partido
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="dialog-card">
+        <DialogHeader>
+          <DialogTitle>Añadir partido</DialogTitle>
+          <DialogDescription>
+            Regístralo manualmente si todavía no tienes el PDF.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="dialog-scroll">
+          <div className="form-grid">
+            <label>
+              Fecha
+              <Input
+                type="date"
+                value={form.date}
+                onChange={(e) => set("date", e.target.value)}
+              />
+            </label>
+            <label>
+              Hora
+              <Input
+                type="time"
+                value={form.time}
+                onChange={(e) => set("time", e.target.value)}
+              />
+            </label>
+            <label>
+              Equipo local
+              <Input
+                placeholder="Equipo local"
+                value={form.home}
+                onChange={(e) => set("home", e.target.value)}
+              />
+            </label>
+            <label>
+              Equipo visitante
+              <Input
+                placeholder="Equipo visitante"
+                value={form.away}
+                onChange={(e) => set("away", e.target.value)}
+              />
+            </label>
+            <label>
+              Categoría
+              <Input
+                placeholder="Junior Autonómico"
+                value={form.category}
+                onChange={(e) => set("category", e.target.value)}
+              />
+            </label>
+            <label>
+              Función
+              <Input
+                value={form.role}
+                onChange={(e) => set("role", e.target.value)}
+              />
+            </label>
+            <label className="wide">
+              Pabellón
+              <Input
+                placeholder="Pabellón"
+                value={form.venue}
+                onChange={(e) => set("venue", e.target.value)}
+              />
+            </label>
+            <label>
+              Tarifa base
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.gross}
+                onChange={(e) => set("gross", e.target.value)}
+              />
+            </label>
+            <div className="rate-import-control">
+              <span>Tarifa guardada</span>
+              <Button type="button" variant="outline" onClick={importRate}>
+                <CircleEuro /> Importar tarifa guardada
+              </Button>
+              {rateMessage && <p className="form-helper">{rateMessage}</p>}
+            </div>
+            {competition === "escolar" && (
+              <label className="wide friendly-toggle">
+                <input
+                  type="checkbox"
+                  checked={form.friendly}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      friendly: event.target.checked,
+                    }))
+                  }
+                />
+                <span>
+                  <strong>Partido amistoso</strong>
+                  <small>
+                    Se abonará el 50 % de la tarifa base. Dietas y kilometraje
+                    se mantienen íntegros.
+                  </small>
+                </span>
+              </label>
+            )}
+            <details className="wide expense-submenu" open>
+              <summary>Dietas y kilometraje</summary>
+              <div className="expense-fields">
+                <label>
+                  Dieta
+                  <NativeSelect
+                    className="w-full"
+                    value={form.dietOptionId}
+                    onChange={(event) =>
+                      set("dietOptionId", event.target.value)
+                    }
+                  >
+                    <NativeSelectOption value="none">
+                      Sin dieta
+                    </NativeSelectOption>
+                    {expensePolicy.diets.map((option) => (
+                      <NativeSelectOption key={option.id} value={option.id}>
+                        {option.label} · {money(option.amount)}
+                      </NativeSelectOption>
+                    ))}
+                  </NativeSelect>
+                </label>
+                <label>
+                  Desplazamiento en coche
+                  <NativeSelect
+                    className="w-full"
+                    value={form.mileageOptionId}
+                    onChange={(event) => setMileageOption(event.target.value)}
+                  >
+                    <NativeSelectOption value="none">
+                      No llevo coche
+                    </NativeSelectOption>
+                    {expensePolicy.mileage.map((option) => (
+                      <NativeSelectOption key={option.id} value={option.id}>
+                        {option.label} · {money(option.amount)}/km
+                      </NativeSelectOption>
+                    ))}
+                  </NativeSelect>
+                </label>
+                <label>
+                  Kilómetros totales
+                  <Input
+                    type="number"
+                    inputMode="numeric"
+                    min="0"
+                    step="1"
+                    value={form.mileageKm}
+                    onChange={(event) => setMileageKm(event.target.value)}
+                    placeholder="Escribe los km"
+                  />
+                  <small>
+                    Si escribes kilómetros sin elegir modalidad, se aplicará
+                    Individual.
+                  </small>
+                </label>
+                <div className="expense-preview">
+                  <span>
+                    Tarifa computada <strong>{money(previewTariff)}</strong>
+                  </span>
+                  <span>
+                    Gastos{" "}
+                    <strong>
+                      {money((selectedDiet?.amount || 0) + previewMileage)}
+                    </strong>
+                  </span>
+                  <span>
+                    Neto estimado <strong>{money(previewNet)}</strong>
+                  </span>
+                </div>
+              </div>
+            </details>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Cancelar
+          </Button>
+          <Button className="primary-btn" onClick={submit}>
+            Guardar partido
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
-function EditMatchDialog({ match, rates, expensePolicy, onSave }: { match: Match; rates: Rate[]; expensePolicy: ExpensePolicy; onSave: (match: Match) => void }) {
-  const formFromMatch = (item: Match) => ({ date: item.date, time: item.time, home: item.home, away: item.away, category: item.category, role: item.role, venue: item.venue, gross: String(item.gross), dietOptionId: item.dietOptionId || expensePolicy.diets.find((option) => Math.abs(option.amount - item.diets) < 0.001)?.id || (item.diets > 0 ? "custom" : "none"), mileageOptionId: item.mileageOptionId || expensePolicy.mileage.find((option) => Math.abs(option.amount - (item.mileageRate || 0)) < 0.001)?.id || ((item.mileageRate || 0) > 0 ? "custom" : "none"), mileageKm: item.mileageKm ? String(item.mileageKm) : "", friendly: Boolean(item.friendly), partners: item.partners.join(", ") });
+function EditMatchDialog({
+  match,
+  rates,
+  expensePolicy,
+  onSave,
+}: {
+  match: Match;
+  rates: Rate[];
+  expensePolicy: ExpensePolicy;
+  onSave: (match: Match) => void;
+}) {
+  const formFromMatch = (item: Match) => ({
+    date: item.date,
+    time: item.time,
+    home: item.home,
+    away: item.away,
+    category: item.category,
+    role: item.role,
+    venue: item.venue,
+    gross: String(item.gross),
+    dietOptionId:
+      item.dietOptionId ||
+      expensePolicy.diets.find(
+        (option) => Math.abs(option.amount - item.diets) < 0.001,
+      )?.id ||
+      (item.diets > 0 ? "custom" : "none"),
+    mileageOptionId:
+      item.mileageOptionId ||
+      expensePolicy.mileage.find(
+        (option) => Math.abs(option.amount - (item.mileageRate || 0)) < 0.001,
+      )?.id ||
+      ((item.mileageRate || 0) > 0 ? "custom" : "none"),
+    mileageKm: item.mileageKm ? String(item.mileageKm) : "",
+    friendly: Boolean(item.friendly),
+    partners: item.partners.join(", "),
+  });
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(() => formFromMatch(match));
   const [rateMessage, setRateMessage] = useState("");
-  const set = (key: keyof Omit<typeof form, "friendly">, value: string) => { setForm((current) => ({ ...current, [key]: value })); if (key === "category" || key === "role") setRateMessage(""); };
-  const setMileageOption = (value: string) => setForm((current) => ({ ...current, mileageOptionId: value, mileageKm: value === "none" ? "" : current.mileageKm }));
-  const setMileageKm = (value: string) => setForm((current) => {
-    const validOption = current.mileageOptionId === "custom" || expensePolicy.mileage.some((option) => option.id === current.mileageOptionId);
-    return { ...current, mileageKm: value, mileageOptionId: validOption ? current.mileageOptionId : expensePolicy.mileage[0]?.id || "none" };
-  });
-  const importRate = () => { const savedRate = findSavedRate(rates, form.category, form.role); if (!savedRate) { setRateMessage("No hay una tarifa guardada para esa categoría y función."); return; } setForm((current) => ({ ...current, gross: String(savedRate.amount) })); setRateMessage(`Tarifa importada: ${money(savedRate.amount)}`); };
-  const changeOpen = (nextOpen: boolean) => { if (nextOpen) setForm(formFromMatch(match)); setRateMessage(""); setOpen(nextOpen); };
-  const selectedDiet = form.dietOptionId === "custom" ? { id: "custom", label: match.dietLabel || "Importe anterior", amount: match.diets } : expensePolicy.diets.find((option) => option.id === form.dietOptionId);
-  const selectedMileage = form.mileageOptionId === "custom" ? { id: "custom", label: match.mileageLabel || "Importe anterior", amount: match.mileageRate || 0 } : expensePolicy.mileage.find((option) => option.id === form.mileageOptionId);
+  const set = (key: keyof Omit<typeof form, "friendly">, value: string) => {
+    setForm((current) => ({ ...current, [key]: value }));
+    if (key === "category" || key === "role") setRateMessage("");
+  };
+  const setMileageOption = (value: string) =>
+    setForm((current) => ({
+      ...current,
+      mileageOptionId: value,
+      mileageKm: value === "none" ? "" : current.mileageKm,
+    }));
+  const setMileageKm = (value: string) =>
+    setForm((current) => {
+      const validOption =
+        current.mileageOptionId === "custom" ||
+        expensePolicy.mileage.some(
+          (option) => option.id === current.mileageOptionId,
+        );
+      return {
+        ...current,
+        mileageKm: value,
+        mileageOptionId: validOption
+          ? current.mileageOptionId
+          : expensePolicy.mileage[0]?.id || "none",
+      };
+    });
+  const importRate = () => {
+    const savedRate = findSavedRate(rates, form.category, form.role);
+    if (!savedRate) {
+      setRateMessage(
+        "No hay una tarifa guardada para esa categoría y función.",
+      );
+      return;
+    }
+    setForm((current) => ({ ...current, gross: String(savedRate.amount) }));
+    setRateMessage(`Tarifa importada: ${money(savedRate.amount)}`);
+  };
+  const changeOpen = (nextOpen: boolean) => {
+    if (nextOpen) setForm(formFromMatch(match));
+    setRateMessage("");
+    setOpen(nextOpen);
+  };
+  const selectedDiet =
+    form.dietOptionId === "custom"
+      ? {
+          id: "custom",
+          label: match.dietLabel || "Importe anterior",
+          amount: match.diets,
+        }
+      : expensePolicy.diets.find((option) => option.id === form.dietOptionId);
+  const selectedMileage =
+    form.mileageOptionId === "custom"
+      ? {
+          id: "custom",
+          label: match.mileageLabel || "Importe anterior",
+          amount: match.mileageRate || 0,
+        }
+      : expensePolicy.mileage.find(
+          (option) => option.id === form.mileageOptionId,
+        );
   const matchedRate = findSavedRate(rates, form.category, form.role);
-  const baseTariff = matchedRate?.amount ?? Math.max(0, Number(form.gross) || 0);
-  const previewTariff = baseTariff * (match.competition === "escolar" && form.friendly ? 0.5 : 1);
-  const previewMileage = Math.max(0, Number(form.mileageKm) || 0) * (selectedMileage?.amount || 0);
-  const previewNet = previewTariff * (1 - RETENTION_RATE / 100) + (selectedDiet?.amount || 0) + previewMileage;
+  const baseTariff =
+    matchedRate?.amount ?? Math.max(0, Number(form.gross) || 0);
+  const previewTariff =
+    baseTariff * (match.competition === "escolar" && form.friendly ? 0.5 : 1);
+  const previewMileage =
+    Math.max(0, Number(form.mileageKm) || 0) * (selectedMileage?.amount || 0);
+  const previewNet =
+    previewTariff * (1 - RETENTION_RATE / 100) +
+    (selectedDiet?.amount || 0) +
+    previewMileage;
   const submit = () => {
     if (!form.home.trim() || !form.away.trim()) return;
     const updatedMatch: Match = {
@@ -497,54 +1656,412 @@ function EditMatchDialog({ match, rates, expensePolicy, onSave }: { match: Match
       mileageLabel: selectedMileage?.label,
       friendly: match.competition === "escolar" && form.friendly,
       retention: RETENTION_RATE,
-      partners: form.partners.split(",").map((partner) => partner.trim()).filter(Boolean),
+      partners: form.partners
+        .split(",")
+        .map((partner) => partner.trim())
+        .filter(Boolean),
     };
     onSave(updatedMatch);
     setOpen(false);
   };
-  return <Dialog open={open} onOpenChange={changeOpen}><DialogTrigger asChild><button aria-label={`Editar ${match.home} contra ${match.away}`} title="Editar partido"><Pencil /></button></DialogTrigger><DialogContent className="dialog-card"><DialogHeader><DialogTitle>Editar partido</DialogTitle><DialogDescription>Actualiza la designación y añade los compañeros separados por comas.</DialogDescription></DialogHeader><div className="dialog-scroll"><div className="form-grid">
-    <label>Fecha<Input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} /></label><label>Hora<Input type="time" value={form.time} onChange={(e) => set("time", e.target.value)} /></label>
-    <label>Equipo local<Input value={form.home} onChange={(e) => set("home", e.target.value)} /></label><label>Equipo visitante<Input value={form.away} onChange={(e) => set("away", e.target.value)} /></label>
-    <label>Categoría<Input value={form.category} onChange={(e) => set("category", e.target.value)} /></label><label>Función<Input value={form.role} onChange={(e) => set("role", e.target.value)} /></label>
-    <label className="wide">Pabellón<Input value={form.venue} onChange={(e) => set("venue", e.target.value)} /></label>
-    <label>Tarifa base<Input type="number" min="0" step="0.01" value={form.gross} onChange={(e) => set("gross", e.target.value)} /></label>
-    <div className="rate-import-control"><span>Tarifa guardada</span><Button type="button" variant="outline" onClick={importRate}><CircleEuro /> Importar tarifa guardada</Button>{rateMessage && <p className="form-helper">{rateMessage}</p>}</div>
-    {match.competition === "escolar" && <label className="wide friendly-toggle"><input type="checkbox" checked={form.friendly} onChange={(event) => setForm((current) => ({ ...current, friendly: event.target.checked }))} /><span><strong>Partido amistoso</strong><small>Se abonará el 50 % de la tarifa base. Dietas y kilometraje se mantienen íntegros.</small></span></label>}
-    <details className="wide expense-submenu" open><summary>Dietas y kilometraje</summary><div className="expense-fields">
-      <label>Dieta<NativeSelect className="w-full" value={form.dietOptionId} onChange={(event) => set("dietOptionId", event.target.value)}><NativeSelectOption value="none">Sin dieta</NativeSelectOption>{form.dietOptionId === "custom" && <NativeSelectOption value="custom">Importe anterior · {money(match.diets)}</NativeSelectOption>}{expensePolicy.diets.map((option) => <NativeSelectOption key={option.id} value={option.id}>{option.label} · {money(option.amount)}</NativeSelectOption>)}</NativeSelect></label>
-      <label>Desplazamiento en coche<NativeSelect className="w-full" value={form.mileageOptionId} onChange={(event) => setMileageOption(event.target.value)}><NativeSelectOption value="none">No llevo coche</NativeSelectOption>{form.mileageOptionId === "custom" && <NativeSelectOption value="custom">Importe anterior · {money(match.mileageRate || 0)}/km</NativeSelectOption>}{expensePolicy.mileage.map((option) => <NativeSelectOption key={option.id} value={option.id}>{option.label} · {money(option.amount)}/km</NativeSelectOption>)}</NativeSelect></label>
-      <label>Kilómetros totales<Input type="number" inputMode="numeric" min="0" step="1" value={form.mileageKm} onChange={(event) => setMileageKm(event.target.value)} placeholder="Escribe los km" /><small>Si escribes kilómetros sin elegir modalidad, se aplicará Individual.</small></label>
-      <div className="expense-preview"><span>Tarifa computada <strong>{money(previewTariff)}</strong></span><span>Gastos <strong>{money((selectedDiet?.amount || 0) + previewMileage)}</strong></span><span>Neto estimado <strong>{money(previewNet)}</strong></span></div>
-    </div></details>
-    <label className="wide">Compañeros · separados por comas<Input value={form.partners} onChange={(e) => set("partners", e.target.value)} placeholder="Ana López, Carlos Ruiz" /></label>
-  </div></div><DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button><Button className="primary-btn" onClick={submit}>Guardar cambios</Button></DialogFooter></DialogContent></Dialog>;
+  return (
+    <Dialog open={open} onOpenChange={changeOpen}>
+      <DialogTrigger asChild>
+        <button
+          aria-label={`Editar ${match.home} contra ${match.away}`}
+          title="Editar partido"
+        >
+          <Pencil />
+        </button>
+      </DialogTrigger>
+      <DialogContent className="dialog-card">
+        <DialogHeader>
+          <DialogTitle>Editar partido</DialogTitle>
+          <DialogDescription>
+            Actualiza la designación y añade los compañeros separados por comas.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="dialog-scroll">
+          <div className="form-grid">
+            <label>
+              Fecha
+              <Input
+                type="date"
+                value={form.date}
+                onChange={(e) => set("date", e.target.value)}
+              />
+            </label>
+            <label>
+              Hora
+              <Input
+                type="time"
+                value={form.time}
+                onChange={(e) => set("time", e.target.value)}
+              />
+            </label>
+            <label>
+              Equipo local
+              <Input
+                value={form.home}
+                onChange={(e) => set("home", e.target.value)}
+              />
+            </label>
+            <label>
+              Equipo visitante
+              <Input
+                value={form.away}
+                onChange={(e) => set("away", e.target.value)}
+              />
+            </label>
+            <label>
+              Categoría
+              <Input
+                value={form.category}
+                onChange={(e) => set("category", e.target.value)}
+              />
+            </label>
+            <label>
+              Función
+              <Input
+                value={form.role}
+                onChange={(e) => set("role", e.target.value)}
+              />
+            </label>
+            <label className="wide">
+              Pabellón
+              <Input
+                value={form.venue}
+                onChange={(e) => set("venue", e.target.value)}
+              />
+            </label>
+            <label>
+              Tarifa base
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.gross}
+                onChange={(e) => set("gross", e.target.value)}
+              />
+            </label>
+            <div className="rate-import-control">
+              <span>Tarifa guardada</span>
+              <Button type="button" variant="outline" onClick={importRate}>
+                <CircleEuro /> Importar tarifa guardada
+              </Button>
+              {rateMessage && <p className="form-helper">{rateMessage}</p>}
+            </div>
+            {match.competition === "escolar" && (
+              <label className="wide friendly-toggle">
+                <input
+                  type="checkbox"
+                  checked={form.friendly}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      friendly: event.target.checked,
+                    }))
+                  }
+                />
+                <span>
+                  <strong>Partido amistoso</strong>
+                  <small>
+                    Se abonará el 50 % de la tarifa base. Dietas y kilometraje
+                    se mantienen íntegros.
+                  </small>
+                </span>
+              </label>
+            )}
+            <details className="wide expense-submenu" open>
+              <summary>Dietas y kilometraje</summary>
+              <div className="expense-fields">
+                <label>
+                  Dieta
+                  <NativeSelect
+                    className="w-full"
+                    value={form.dietOptionId}
+                    onChange={(event) =>
+                      set("dietOptionId", event.target.value)
+                    }
+                  >
+                    <NativeSelectOption value="none">
+                      Sin dieta
+                    </NativeSelectOption>
+                    {form.dietOptionId === "custom" && (
+                      <NativeSelectOption value="custom">
+                        Importe anterior · {money(match.diets)}
+                      </NativeSelectOption>
+                    )}
+                    {expensePolicy.diets.map((option) => (
+                      <NativeSelectOption key={option.id} value={option.id}>
+                        {option.label} · {money(option.amount)}
+                      </NativeSelectOption>
+                    ))}
+                  </NativeSelect>
+                </label>
+                <label>
+                  Desplazamiento en coche
+                  <NativeSelect
+                    className="w-full"
+                    value={form.mileageOptionId}
+                    onChange={(event) => setMileageOption(event.target.value)}
+                  >
+                    <NativeSelectOption value="none">
+                      No llevo coche
+                    </NativeSelectOption>
+                    {form.mileageOptionId === "custom" && (
+                      <NativeSelectOption value="custom">
+                        Importe anterior · {money(match.mileageRate || 0)}/km
+                      </NativeSelectOption>
+                    )}
+                    {expensePolicy.mileage.map((option) => (
+                      <NativeSelectOption key={option.id} value={option.id}>
+                        {option.label} · {money(option.amount)}/km
+                      </NativeSelectOption>
+                    ))}
+                  </NativeSelect>
+                </label>
+                <label>
+                  Kilómetros totales
+                  <Input
+                    type="number"
+                    inputMode="numeric"
+                    min="0"
+                    step="1"
+                    value={form.mileageKm}
+                    onChange={(event) => setMileageKm(event.target.value)}
+                    placeholder="Escribe los km"
+                  />
+                  <small>
+                    Si escribes kilómetros sin elegir modalidad, se aplicará
+                    Individual.
+                  </small>
+                </label>
+                <div className="expense-preview">
+                  <span>
+                    Tarifa computada <strong>{money(previewTariff)}</strong>
+                  </span>
+                  <span>
+                    Gastos{" "}
+                    <strong>
+                      {money((selectedDiet?.amount || 0) + previewMileage)}
+                    </strong>
+                  </span>
+                  <span>
+                    Neto estimado <strong>{money(previewNet)}</strong>
+                  </span>
+                </div>
+              </div>
+            </details>
+            <label className="wide">
+              Compañeros · separados por comas
+              <Input
+                value={form.partners}
+                onChange={(e) => set("partners", e.target.value)}
+                placeholder="Ana López, Carlos Ruiz"
+              />
+            </label>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Cancelar
+          </Button>
+          <Button className="primary-btn" onClick={submit}>
+            Guardar cambios
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
-function VideoDialog({ matches, onAdd }: { matches: Match[]; onAdd: (game: RecordedGame) => void }) {
-  const [open, setOpen] = useState(false); const [title, setTitle] = useState(""); const [url, setUrl] = useState(""); const [matchId, setMatchId] = useState(""); const [error, setError] = useState("");
-  const chooseMatch = (id: string) => { setMatchId(id); const match = matches.find((item) => item.id === id); if (match && !title.trim()) setTitle(`${match.home} – ${match.away}`); };
-  const submit = () => { const youtubeId = parseYouTubeId(url); if (!youtubeId) { setError("Introduce un enlace válido de YouTube."); return; } const cleanTitle = title.trim() || "Partido grabado"; const linkedMatchId = matchId || findMatchForVideoTitle(cleanTitle, matches)?.id; onAdd({ id: makeId(), title: cleanTitle, youtubeUrl: url.trim(), youtubeId, matchId: linkedMatchId || undefined, createdAt: new Date().toISOString(), annotations: [] }); setTitle(""); setUrl(""); setMatchId(""); setError(""); setOpen(false); };
-  return <Dialog open={open} onOpenChange={setOpen}><DialogTrigger asChild><Button className="primary-btn"><Plus /> Añadir vídeo</Button></DialogTrigger><DialogContent className="dialog-card"><DialogHeader><DialogTitle>Añadir partido grabado</DialogTitle><DialogDescription>Pega el enlace de YouTube. RefFlow intentará relacionarlo con uno de tus partidos.</DialogDescription></DialogHeader><div className="video-form"><label>Partido correspondiente<NativeSelect className="w-full" value={matchId} onChange={(event) => chooseMatch(event.target.value)}><NativeSelectOption value="">Detectar automáticamente por el título</NativeSelectOption>{matches.map((match) => <NativeSelectOption key={match.id} value={match.id}>{match.home} – {match.away} · {dateLabel(match.date)}</NativeSelectOption>)}</NativeSelect></label><label>Título del partido<Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="CB Toledo – Baloncesto Talavera" /></label><label>Enlace de YouTube<Input value={url} onChange={(e) => { setUrl(e.target.value); setError(""); }} placeholder="https://www.youtube.com/watch?v=…" /></label>{error && <p className="form-error">{error}</p>}</div><DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button><Button className="primary-btn" onClick={submit}>Añadir y analizar</Button></DialogFooter></DialogContent></Dialog>;
+function VideoDialog({
+  matches,
+  onAdd,
+}: {
+  matches: Match[];
+  onAdd: (game: RecordedGame) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState("");
+  const [url, setUrl] = useState("");
+  const [matchId, setMatchId] = useState("");
+  const [error, setError] = useState("");
+  const chooseMatch = (id: string) => {
+    setMatchId(id);
+    const match = matches.find((item) => item.id === id);
+    if (match && !title.trim()) setTitle(`${match.home} – ${match.away}`);
+  };
+  const submit = () => {
+    const youtubeId = parseYouTubeId(url);
+    if (!youtubeId) {
+      setError("Introduce un enlace válido de YouTube.");
+      return;
+    }
+    const cleanTitle = title.trim() || "Partido grabado";
+    const linkedMatchId =
+      matchId || findMatchForVideoTitle(cleanTitle, matches)?.id;
+    onAdd({
+      id: makeId(),
+      title: cleanTitle,
+      youtubeUrl: url.trim(),
+      youtubeId,
+      matchId: linkedMatchId || undefined,
+      createdAt: new Date().toISOString(),
+      annotations: [],
+    });
+    setTitle("");
+    setUrl("");
+    setMatchId("");
+    setError("");
+    setOpen(false);
+  };
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button className="primary-btn">
+          <Plus /> Añadir vídeo
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="dialog-card">
+        <DialogHeader>
+          <DialogTitle>Añadir partido grabado</DialogTitle>
+          <DialogDescription>
+            Pega el enlace de YouTube. RefFlow intentará relacionarlo con uno de
+            tus partidos.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="video-form">
+          <label>
+            Partido correspondiente
+            <NativeSelect
+              className="w-full"
+              value={matchId}
+              onChange={(event) => chooseMatch(event.target.value)}
+            >
+              <NativeSelectOption value="">
+                Detectar automáticamente por el título
+              </NativeSelectOption>
+              {matches.map((match) => (
+                <NativeSelectOption key={match.id} value={match.id}>
+                  {match.home} – {match.away} · {dateLabel(match.date)}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+          </label>
+          <label>
+            Título del partido
+            <Input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="CB Toledo – Baloncesto Talavera"
+            />
+          </label>
+          <label>
+            Enlace de YouTube
+            <Input
+              value={url}
+              onChange={(e) => {
+                setUrl(e.target.value);
+                setError("");
+              }}
+              placeholder="https://www.youtube.com/watch?v=…"
+            />
+          </label>
+          {error && <p className="form-error">{error}</p>}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Cancelar
+          </Button>
+          <Button className="primary-btn" onClick={submit}>
+            Añadir y analizar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
-type YouTubePlayer = { getCurrentTime: () => number; seekTo: (seconds: number, allowSeekAhead: boolean) => void; destroy: () => void };
-type YouTubeWindow = Window & { YT?: { Player: new (element: HTMLElement, options: { videoId: string; playerVars: Record<string, number>; events: { onReady: () => void } }) => YouTubePlayer }; onYouTubeIframeAPIReady?: () => void };
+type YouTubePlayer = {
+  getCurrentTime: () => number;
+  seekTo: (seconds: number, allowSeekAhead: boolean) => void;
+  destroy: () => void;
+};
+type YouTubeWindow = Window & {
+  YT?: {
+    Player: new (
+      element: HTMLElement,
+      options: {
+        videoId: string;
+        playerVars: Record<string, number>;
+        events: { onReady: () => void };
+      },
+    ) => YouTubePlayer;
+  };
+  onYouTubeIframeAPIReady?: () => void;
+};
 
 export default function RefFlow() {
-  const [view, setView] = useState<View>("inicio"); const [data, setData] = useState<AppData>(sampleData); const [loaded, setLoaded] = useState(false);
+  const [view, setView] = useState<View>("inicio");
+  const [data, setData] = useState<AppData>(sampleData);
+  const [loaded, setLoaded] = useState(false);
   const [earningsPeriod, setEarningsPeriod] = useState("general");
-  const [settingsTab, setSettingsTab] = useState<"profile" | "seasons" | "notifications" | "rates">("profile"); const [closeSeasonOpen, setCloseSeasonOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<
+    "profile" | "seasons" | "notifications" | "rates"
+  >("profile");
+  const [closeSeasonOpen, setCloseSeasonOpen] = useState(false);
   const [calendarCursor, setCalendarCursor] = useState(() => new Date());
-  const [notificationBusy, setNotificationBusy] = useState(false); const [notificationMessage, setNotificationMessage] = useState(""); const [notificationDeviceReady, setNotificationDeviceReady] = useState(false);
-  const [viewer, setViewer] = useState<Viewer | null>(null); const [authState, setAuthState] = useState<"loading" | "authenticated" | "anonymous">("loading");
+  const [notificationBusy, setNotificationBusy] = useState(false);
+  const [notificationMessage, setNotificationMessage] = useState("");
+  const [notificationDeviceReady, setNotificationDeviceReady] = useState(false);
+  const [viewer, setViewer] = useState<Viewer | null>(null);
+  const [authState, setAuthState] = useState<
+    "loading" | "authenticated" | "anonymous"
+  >("loading");
   const [legacyMigrationNeeded, setLegacyMigrationNeeded] = useState(false);
-  const [authMode, setAuthMode] = useState<"login" | "signup">("login"); const [authEmail, setAuthEmail] = useState(""); const [authPassword, setAuthPassword] = useState(""); const [authName, setAuthName] = useState(""); const [authBusy, setAuthBusy] = useState(false); const [authMessage, setAuthMessage] = useState("");
-  const [usernameDraft, setUsernameDraft] = useState(""); const [profileMessage, setProfileMessage] = useState(""); const [profileBusy, setProfileBusy] = useState(false); const profileFileRef = useRef<HTMLInputElement>(null);
-  const [saveState, setSaveState] = useState<"guardando" | "guardado" | "error">("guardando"); const [menuOpen, setMenuOpen] = useState(false); const [search, setSearch] = useState("");
-  const [pdfState, setPdfState] = useState<"idle" | "reading" | "ready" | "error">("idle"); const [pdfImport, setPdfImport] = useState<ParsedDesignationPdf | null>(null); const [pdfFileName, setPdfFileName] = useState(""); const [pdfError, setPdfError] = useState(""); const [notice, setNotice] = useState(""); const fileRef = useRef<HTMLInputElement>(null);
-  const [ratePdfState, setRatePdfState] = useState<"idle" | "reading" | "ready" | "error">("idle"); const [ratePdfPreview, setRatePdfPreview] = useState<ParsedRateSheet | null>(null); const [ratePdfFileName, setRatePdfFileName] = useState(""); const [ratePdfError, setRatePdfError] = useState(""); const rateFileRef = useRef<HTMLInputElement>(null);
-  const [selectedGameId, setSelectedGameId] = useState(""); const [manualMinute, setManualMinute] = useState(0); const [manualSecond, setManualSecond] = useState(0); const [annotationNote, setAnnotationNote] = useState(""); const [playerReady, setPlayerReady] = useState(false); const [analysisFullscreen, setAnalysisFullscreen] = useState(false);
-  const playerMountRef = useRef<HTMLDivElement>(null); const playerRef = useRef<YouTubePlayer | null>(null); const analysisStageRef = useRef<HTMLDivElement>(null);
+  const [authMode, setAuthMode] = useState<"login" | "signup">("login");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authName, setAuthName] = useState("");
+  const [authBusy, setAuthBusy] = useState(false);
+  const [authMessage, setAuthMessage] = useState("");
+  const [usernameDraft, setUsernameDraft] = useState("");
+  const [profileMessage, setProfileMessage] = useState("");
+  const [profileBusy, setProfileBusy] = useState(false);
+  const profileFileRef = useRef<HTMLInputElement>(null);
+  const [saveState, setSaveState] = useState<
+    "guardando" | "guardado" | "error"
+  >("guardando");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [pdfState, setPdfState] = useState<
+    "idle" | "reading" | "ready" | "error"
+  >("idle");
+  const [pdfImport, setPdfImport] = useState<ParsedDesignationPdf | null>(null);
+  const [pdfFileName, setPdfFileName] = useState("");
+  const [pdfError, setPdfError] = useState("");
+  const [notice, setNotice] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [ratePdfState, setRatePdfState] = useState<
+    "idle" | "reading" | "ready" | "error"
+  >("idle");
+  const [ratePdfPreview, setRatePdfPreview] = useState<ParsedRateSheet | null>(
+    null,
+  );
+  const [ratePdfFileName, setRatePdfFileName] = useState("");
+  const [ratePdfError, setRatePdfError] = useState("");
+  const rateFileRef = useRef<HTMLInputElement>(null);
+  const [selectedGameId, setSelectedGameId] = useState("");
+  const [manualMinute, setManualMinute] = useState(0);
+  const [manualSecond, setManualSecond] = useState(0);
+  const [annotationNote, setAnnotationNote] = useState("");
+  const [playerReady, setPlayerReady] = useState(false);
+  const [analysisFullscreen, setAnalysisFullscreen] = useState(false);
+  const playerMountRef = useRef<HTMLDivElement>(null);
+  const playerRef = useRef<YouTubePlayer | null>(null);
+  const analysisStageRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     let active = true;
     const loadSession = async (session: Session | null) => {
@@ -561,11 +2078,30 @@ export default function RefFlow() {
         setAuthState("loading");
         const user = session.user;
         const email = user.email || "";
-        const metadataName = typeof user.user_metadata?.full_name === "string" ? user.user_metadata.full_name : "";
-        const currentViewer: Viewer = { userId: user.id, email, displayName: metadataName || email, fullName: metadataName || null };
-        const [{ data: stored, error: readError }, { data: profile, error: profileError }] = await Promise.all([
-          supabase.from("user_states").select("payload").eq("user_id", user.id).maybeSingle(),
-          supabase.from("profiles").select("username").eq("user_id", user.id).maybeSingle(),
+        const metadataName =
+          typeof user.user_metadata?.full_name === "string"
+            ? user.user_metadata.full_name
+            : "";
+        const currentViewer: Viewer = {
+          userId: user.id,
+          email,
+          displayName: metadataName || email,
+          fullName: metadataName || null,
+        };
+        const [
+          { data: stored, error: readError },
+          { data: profile, error: profileError },
+        ] = await Promise.all([
+          supabase
+            .from("user_states")
+            .select("payload")
+            .eq("user_id", user.id)
+            .maybeSingle(),
+          supabase
+            .from("profiles")
+            .select("username")
+            .eq("user_id", user.id)
+            .maybeSingle(),
         ]);
         if (readError) throw readError;
         if (profileError) throw profileError;
@@ -573,9 +2109,13 @@ export default function RefFlow() {
         let state = stored?.payload as AppData | null | undefined;
         let requiresLegacyLink = false;
         if (!state) {
-          const legacyResponse = await fetch("/api/legacy-state", { headers: { Authorization: `Bearer ${session.access_token}` } }).catch(() => null);
+          const legacyResponse = await fetch("/api/legacy-state", {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          }).catch(() => null);
           if (legacyResponse?.ok) {
-            const legacy = await legacyResponse.json() as { state?: AppData | null };
+            const legacy = (await legacyResponse.json()) as {
+              state?: AppData | null;
+            };
             state = legacy.state || null;
           } else if (window.location.hostname.endsWith(".chatgpt.site")) {
             requiresLegacyLink = true;
@@ -583,20 +2123,30 @@ export default function RefFlow() {
         }
 
         const savedState = state
-          ? { ...sampleData, ...state, dataVersion: state.dataVersion ?? 0, recordedGames: state.recordedGames || [] }
+          ? {
+              ...sampleData,
+              ...state,
+              dataVersion: state.dataVersion ?? 0,
+              recordedGames: state.recordedGames || [],
+            }
           : emptyData(metadataName || email.split("@")[0] || "Árbitro");
         const normalized = normalizeData(savedState);
-        normalized.settings.username = profile?.username || normalized.settings.username;
-        normalized.matches = normalized.matches.map((match) => match.gross > 0 ? match : applySavedRate(match, normalized.rates));
+        normalized.settings.username =
+          profile?.username || normalized.settings.username;
+        normalized.matches = normalized.matches.map((match) =>
+          match.gross > 0 ? match : applySavedRate(match, normalized.rates),
+        );
 
         if (!stored && !requiresLegacyLink) {
-          const { error: createError } = await supabase.from("user_states").upsert({
-            user_id: user.id,
-            email,
-            display_name: normalized.settings.name || metadataName || email,
-            payload: normalized,
-            updated_at: new Date().toISOString(),
-          });
+          const { error: createError } = await supabase
+            .from("user_states")
+            .upsert({
+              user_id: user.id,
+              email,
+              display_name: normalized.settings.name || metadataName || email,
+              payload: normalized,
+              updated_at: new Date().toISOString(),
+            });
           if (createError) throw createError;
         }
 
@@ -616,17 +2166,40 @@ export default function RefFlow() {
       }
     };
 
-    void supabase.auth.getSession().then(({ data: sessionData }) => loadSession(sessionData.session));
-    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event !== "INITIAL_SESSION") void loadSession(session);
-    });
-    if (new URLSearchParams(window.location.search).get("view") === "calendario") queueMicrotask(() => setView("calendario"));
-    if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").then((registration) => registration.pushManager?.getSubscription()).then((subscription) => setNotificationDeviceReady(Boolean(subscription))).catch(() => undefined);
-    return () => { active = false; listener.subscription.unsubscribe(); };
+    void supabase.auth
+      .getSession()
+      .then(({ data: sessionData }) => loadSession(sessionData.session));
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (event !== "INITIAL_SESSION") void loadSession(session);
+      },
+    );
+    if (
+      new URLSearchParams(window.location.search).get("view") === "calendario"
+    )
+      queueMicrotask(() => setView("calendario"));
+    if ("serviceWorker" in navigator)
+      navigator.serviceWorker
+        .register("/sw.js")
+        .then((registration) => registration.pushManager?.getSubscription())
+        .then((subscription) =>
+          setNotificationDeviceReady(Boolean(subscription)),
+        )
+        .catch(() => undefined);
+    return () => {
+      active = false;
+      listener.subscription.unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
-    if (!loaded || authState !== "authenticated" || !viewer || legacyMigrationNeeded) return;
+    if (
+      !loaded ||
+      authState !== "authenticated" ||
+      !viewer ||
+      legacyMigrationNeeded
+    )
+      return;
     const t = setTimeout(() => {
       setSaveState("guardando");
       void (async () => {
@@ -648,53 +2221,166 @@ export default function RefFlow() {
     return () => clearTimeout(t);
   }, [data, loaded, authState, viewer, legacyMigrationNeeded]);
   useEffect(() => {
-    if (!loaded || authState !== "authenticated" || !viewer || legacyMigrationNeeded) return;
+    if (
+      !loaded ||
+      authState !== "authenticated" ||
+      !viewer ||
+      legacyMigrationNeeded
+    )
+      return;
     const settings = data.notificationSettings || DEFAULT_NOTIFICATION_SETTINGS;
-    const timer = setTimeout(() => { void (async () => {
-      if (!settings.enabled) {
-        await supabase.from("match_reminders").delete().eq("user_id", viewer.userId).is("sent_at", null);
-        return;
-      }
-      const nowIso = new Date().toISOString();
-      const upcoming = data.matches.flatMap((match) => {
-        const matchAt = new Date(`${match.date}T${match.time || "00:00"}:00`);
-        if (!Number.isFinite(matchAt.getTime()) || matchAt.toISOString() <= nowIso) return [];
-        return [{
-          user_id: viewer.userId,
-          match_id: match.id,
-          match_at: matchAt.toISOString(),
-          notify_at: new Date(matchAt.getTime() - settings.reminderMinutes * 60_000).toISOString(),
-          title: `Partido en ${settings.reminderMinutes >= 1440 ? `${settings.reminderMinutes / 1440} día${settings.reminderMinutes === 1440 ? "" : "s"}` : `${settings.reminderMinutes / 60} h`}`,
-          body: `${match.home} – ${match.away} · ${match.time}${match.venue ? ` · ${match.venue}` : ""}`,
-          url: "/?view=calendario",
-          updated_at: nowIso,
-        }];
-      });
-      const activeIds = upcoming.map((reminder) => reminder.match_id);
-      const { data: existing } = await supabase.from("match_reminders").select("match_id").eq("user_id", viewer.userId).is("sent_at", null);
-      const staleIds = (existing || []).map((item) => item.match_id as string).filter((id) => !activeIds.includes(id));
-      if (staleIds.length) await supabase.from("match_reminders").delete().eq("user_id", viewer.userId).in("match_id", staleIds);
-      if (upcoming.length) await supabase.from("match_reminders").upsert(upcoming, { onConflict: "user_id,match_id" });
-    })(); }, 800);
+    const timer = setTimeout(() => {
+      void (async () => {
+        if (!settings.enabled) {
+          await supabase
+            .from("match_reminders")
+            .delete()
+            .eq("user_id", viewer.userId)
+            .is("sent_at", null);
+          return;
+        }
+        const nowIso = new Date().toISOString();
+        const upcoming = data.matches.flatMap((match) => {
+          const matchAt = new Date(`${match.date}T${match.time || "00:00"}:00`);
+          if (
+            !Number.isFinite(matchAt.getTime()) ||
+            matchAt.toISOString() <= nowIso
+          )
+            return [];
+          return [
+            {
+              user_id: viewer.userId,
+              match_id: match.id,
+              match_at: matchAt.toISOString(),
+              notify_at: new Date(
+                matchAt.getTime() - settings.reminderMinutes * 60_000,
+              ).toISOString(),
+              title: `Partido en ${settings.reminderMinutes >= 1440 ? `${settings.reminderMinutes / 1440} día${settings.reminderMinutes === 1440 ? "" : "s"}` : `${settings.reminderMinutes / 60} h`}`,
+              body: `${match.home} – ${match.away} · ${match.time}${match.venue ? ` · ${match.venue}` : ""}`,
+              url: "/?view=calendario",
+              updated_at: nowIso,
+            },
+          ];
+        });
+        const activeIds = upcoming.map((reminder) => reminder.match_id);
+        const { data: existing } = await supabase
+          .from("match_reminders")
+          .select("match_id")
+          .eq("user_id", viewer.userId)
+          .is("sent_at", null);
+        const staleIds = (existing || [])
+          .map((item) => item.match_id as string)
+          .filter((id) => !activeIds.includes(id));
+        if (staleIds.length)
+          await supabase
+            .from("match_reminders")
+            .delete()
+            .eq("user_id", viewer.userId)
+            .in("match_id", staleIds);
+        if (upcoming.length)
+          await supabase
+            .from("match_reminders")
+            .upsert(upcoming, { onConflict: "user_id,match_id" });
+      })();
+    }, 800);
     return () => clearTimeout(timer);
-  }, [data.matches, data.notificationSettings, loaded, authState, viewer, legacyMigrationNeeded]);
-  useEffect(() => { const context = (document as unknown as { modelContext?: { registerTool: (tool: unknown, options?: { signal: AbortSignal }) => void | Promise<void> } }).modelContext; if (!context?.registerTool) return; const lifecycle = new AbortController(); void Promise.resolve(context.registerTool({ name: "list_matches", title: "Ver partidos", description: "Devuelve los partidos registrados en RefFlow.", inputSchema: { type: "object", properties: {}, additionalProperties: false }, annotations: { readOnlyHint: true }, execute: () => ({ matches: data.matches.map(({ id, competition, date, time, home, away, category }) => ({ id, competition, date, time, home, away, category })) }) }, { signal: lifecycle.signal })).catch(() => undefined); return () => lifecycle.abort(); }, [data.matches]);
+  }, [
+    data.matches,
+    data.notificationSettings,
+    loaded,
+    authState,
+    viewer,
+    legacyMigrationNeeded,
+  ]);
+  useEffect(() => {
+    const context = (
+      document as unknown as {
+        modelContext?: {
+          registerTool: (
+            tool: unknown,
+            options?: { signal: AbortSignal },
+          ) => void | Promise<void>;
+        };
+      }
+    ).modelContext;
+    if (!context?.registerTool) return;
+    const lifecycle = new AbortController();
+    void Promise.resolve(
+      context.registerTool(
+        {
+          name: "list_matches",
+          title: "Ver partidos",
+          description: "Devuelve los partidos registrados en RefFlow.",
+          inputSchema: {
+            type: "object",
+            properties: {},
+            additionalProperties: false,
+          },
+          annotations: { readOnlyHint: true },
+          execute: () => ({
+            matches: data.matches.map(
+              ({ id, competition, date, time, home, away, category }) => ({
+                id,
+                competition,
+                date,
+                time,
+                home,
+                away,
+                category,
+              }),
+            ),
+          }),
+        },
+        { signal: lifecycle.signal },
+      ),
+    ).catch(() => undefined);
+    return () => lifecycle.abort();
+  }, [data.matches]);
 
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12);
-  const weekStartDate = new Date(today); weekStartDate.setDate(today.getDate() - ((today.getDay() + 6) % 7));
-  const weekEndDate = new Date(weekStartDate); weekEndDate.setDate(weekStartDate.getDate() + 6);
-  const weekStart = localIsoDate(weekStartDate); const weekEnd = localIsoDate(weekEndDate);
+  const weekStartDate = new Date(today);
+  weekStartDate.setDate(today.getDate() - ((today.getDay() + 6) % 7));
+  const weekEndDate = new Date(weekStartDate);
+  weekEndDate.setDate(weekStartDate.getDate() + 6);
+  const weekStart = localIsoDate(weekStartDate);
+  const weekEnd = localIsoDate(weekEndDate);
   const monthPrefix = localIsoDate(today).slice(0, 7);
-  const monthLabel = capitalize(new Intl.DateTimeFormat("es-ES", { month: "long" }).format(today));
-  const todayLabel = capitalize(new Intl.DateTimeFormat("es-ES", { weekday: "long", day: "numeric", month: "long" }).format(today));
-  const nextMatches = data.matches.filter((m) => new Date(`${m.date}T${m.time}:00`) >= now).sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`));
-  const weekMatches = data.matches.filter((m) => m.date >= weekStart && m.date <= weekEnd);
-  const total = data.matches.reduce((s, m) => s + net(m), 0); const monthTotal = data.matches.filter((m) => m.date.startsWith(monthPrefix)).reduce((s, m) => s + net(m), 0); const weekTotal = weekMatches.reduce((s, m) => s + net(m), 0);
-  const goalProgress = data.settings.earningsGoal > 0 ? Math.round(monthTotal / data.settings.earningsGoal * 100) : (monthTotal > 0 ? 100 : 0);
-  const regionalMatches = data.matches.filter((m) => m.competition === "regional");
+  const monthLabel = capitalize(
+    new Intl.DateTimeFormat("es-ES", { month: "long" }).format(today),
+  );
+  const todayLabel = capitalize(
+    new Intl.DateTimeFormat("es-ES", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+    }).format(today),
+  );
+  const nextMatches = data.matches
+    .filter((m) => new Date(`${m.date}T${m.time}:00`) >= now)
+    .sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`));
+  const weekMatches = data.matches.filter(
+    (m) => m.date >= weekStart && m.date <= weekEnd,
+  );
+  const total = data.matches.reduce((s, m) => s + net(m), 0);
+  const monthTotal = data.matches
+    .filter((m) => m.date.startsWith(monthPrefix))
+    .reduce((s, m) => s + net(m), 0);
+  const weekTotal = weekMatches.reduce((s, m) => s + net(m), 0);
+  const goalProgress =
+    data.settings.earningsGoal > 0
+      ? Math.round((monthTotal / data.settings.earningsGoal) * 100)
+      : monthTotal > 0
+        ? 100
+        : 0;
+  const regionalMatches = data.matches.filter(
+    (m) => m.competition === "regional",
+  );
   const schoolMatches = data.matches.filter((m) => m.competition === "escolar");
-  const regionalTotal = regionalMatches.reduce((sum, match) => sum + net(match), 0);
+  const regionalTotal = regionalMatches.reduce(
+    (sum, match) => sum + net(match),
+    0,
+  );
   const schoolTotal = schoolMatches.reduce((sum, match) => sum + net(match), 0);
   const seasonStartYear = seasonStartYearFromName(data.settings.season);
   const earningsMonths = Array.from({ length: 12 }, (_, index) => {
@@ -703,123 +2389,503 @@ export default function RefFlow() {
     const matches = data.matches.filter((match) => match.date.startsWith(key));
     return {
       key,
-      label: capitalize(new Intl.DateTimeFormat("es-ES", { month: "long", year: "numeric" }).format(date)),
-      shortLabel: capitalize(new Intl.DateTimeFormat("es-ES", { month: "short" }).format(date).replace(".", "")),
+      label: capitalize(
+        new Intl.DateTimeFormat("es-ES", {
+          month: "long",
+          year: "numeric",
+        }).format(date),
+      ),
+      shortLabel: capitalize(
+        new Intl.DateTimeFormat("es-ES", { month: "short" })
+          .format(date)
+          .replace(".", ""),
+      ),
       matches,
       gross: matches.reduce((sum, match) => sum + grossWithExpenses(match), 0),
       total: matches.reduce((sum, match) => sum + net(match), 0),
     };
   });
-  const selectedEarningsMonth = earningsMonths.find((month) => month.key === earningsPeriod);
+  const selectedEarningsMonth = earningsMonths.find(
+    (month) => month.key === earningsPeriod,
+  );
   const selectedMonthMatches = selectedEarningsMonth?.matches || [];
-  const selectedMonthRegionalMatches = selectedMonthMatches.filter((match) => match.competition === "regional");
-  const selectedMonthSchoolMatches = selectedMonthMatches.filter((match) => match.competition === "escolar");
-  const activeCompetition: MatchCompetition = view === "escolares" ? "escolar" : "regional";
+  const selectedMonthRegionalMatches = selectedMonthMatches.filter(
+    (match) => match.competition === "regional",
+  );
+  const selectedMonthSchoolMatches = selectedMonthMatches.filter(
+    (match) => match.competition === "escolar",
+  );
+  const activeCompetition: MatchCompetition =
+    view === "escolares" ? "escolar" : "regional";
   const normalizedSearch = normalizeRateField(search);
-  const filtered = data.matches.filter((m) => m.competition === activeCompetition && normalizeRateField(`${m.home} ${m.away} ${m.category} ${m.venue}`).includes(normalizedSearch));
-  const updateMatch = (id: string, patch: Partial<Match>) => setData((d) => ({ ...d, matches: d.matches.map((m) => m.id === id ? { ...m, ...patch } : m) }));
-  const recordedGames = data.recordedGames || []; const selectedGame = recordedGames.find((game) => game.id === selectedGameId) || recordedGames[0];
+  const filtered = data.matches.filter(
+    (m) =>
+      m.competition === activeCompetition &&
+      normalizeRateField(
+        `${m.home} ${m.away} ${m.category} ${m.venue}`,
+      ).includes(normalizedSearch),
+  );
+  const updateMatch = (id: string, patch: Partial<Match>) =>
+    setData((d) => ({
+      ...d,
+      matches: d.matches.map((m) => (m.id === id ? { ...m, ...patch } : m)),
+    }));
+  const recordedGames = data.recordedGames || [];
+  const selectedGame =
+    recordedGames.find((game) => game.id === selectedGameId) ||
+    recordedGames[0];
   const pdfOfficials = pdfImport ? uniqueImportedOfficials(pdfImport) : [];
-  const pdfNewOfficials = pdfOfficials.filter((official) => !data.contacts.some((contact) => sameContact(contact, official)));
+  const pdfNewOfficials = pdfOfficials.filter(
+    (official) =>
+      !data.contacts.some((contact) => sameContact(contact, official)),
+  );
   const seasonOptions = [
-    { id: data.activeSeasonId, name: data.settings.season, status: data.seasonStatus, matches: data.matches, recordedGames: data.recordedGames || [], earningsGoal: data.settings.earningsGoal, selected: true },
-    ...(data.seasonArchives || []).map((season) => ({ ...season, selected: false })),
-  ].sort((a, b) => seasonStartYearFromName(b.name) - seasonStartYearFromName(a.name));
-  const nextSeasonName = fullSeasonName(seasonStartYearFromName(data.settings.season) + 1);
+    {
+      id: data.activeSeasonId,
+      name: data.settings.season,
+      status: data.seasonStatus,
+      matches: data.matches,
+      recordedGames: data.recordedGames || [],
+      earningsGoal: data.settings.earningsGoal,
+      selected: true,
+    },
+    ...(data.seasonArchives || []).map((season) => ({
+      ...season,
+      selected: false,
+    })),
+  ].sort(
+    (a, b) => seasonStartYearFromName(b.name) - seasonStartYearFromName(a.name),
+  );
+  const nextSeasonName = fullSeasonName(
+    seasonStartYearFromName(data.settings.season) + 1,
+  );
 
-  useEffect(() => { if (!selectedGame && selectedGameId) queueMicrotask(() => setSelectedGameId("")); if (selectedGame && !selectedGameId) queueMicrotask(() => setSelectedGameId(selectedGame.id)); }, [selectedGame, selectedGameId]);
-  useEffect(() => { const onFullscreenChange = () => { if (document.fullscreenElement === analysisStageRef.current) setAnalysisFullscreen(true); else if (!document.fullscreenElement) setAnalysisFullscreen(false); }; document.addEventListener("fullscreenchange", onFullscreenChange); return () => document.removeEventListener("fullscreenchange", onFullscreenChange); }, []);
-  useEffect(() => { if (!analysisFullscreen) return; const previous = document.body.style.overflow; document.body.style.overflow = "hidden"; return () => { document.body.style.overflow = previous; }; }, [analysisFullscreen]);
   useEffect(() => {
-    if (view !== "grabados" || !selectedGame?.youtubeId || !playerMountRef.current) return;
-    let cancelled = false; setPlayerReady(false); playerRef.current?.destroy(); playerMountRef.current.innerHTML = "";
-    const createPlayer = () => { const ytWindow = window as YouTubeWindow; if (cancelled || !ytWindow.YT?.Player || !playerMountRef.current) return; playerRef.current = new ytWindow.YT.Player(playerMountRef.current, { videoId: selectedGame.youtubeId, playerVars: { rel: 0, modestbranding: 1, playsinline: 1 }, events: { onReady: () => setPlayerReady(true) } }); };
+    if (!selectedGame && selectedGameId)
+      queueMicrotask(() => setSelectedGameId(""));
+    if (selectedGame && !selectedGameId)
+      queueMicrotask(() => setSelectedGameId(selectedGame.id));
+  }, [selectedGame, selectedGameId]);
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      if (document.fullscreenElement === analysisStageRef.current)
+        setAnalysisFullscreen(true);
+      else if (!document.fullscreenElement) setAnalysisFullscreen(false);
+    };
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return () =>
+      document.removeEventListener("fullscreenchange", onFullscreenChange);
+  }, []);
+  useEffect(() => {
+    if (!analysisFullscreen) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [analysisFullscreen]);
+  useEffect(() => {
+    if (
+      view !== "grabados" ||
+      !selectedGame?.youtubeId ||
+      !playerMountRef.current
+    )
+      return;
+    let cancelled = false;
+    setPlayerReady(false);
+    playerRef.current?.destroy();
+    playerMountRef.current.innerHTML = "";
+    const createPlayer = () => {
+      const ytWindow = window as YouTubeWindow;
+      if (cancelled || !ytWindow.YT?.Player || !playerMountRef.current) return;
+      playerRef.current = new ytWindow.YT.Player(playerMountRef.current, {
+        videoId: selectedGame.youtubeId,
+        playerVars: { rel: 0, modestbranding: 1, playsinline: 1 },
+        events: { onReady: () => setPlayerReady(true) },
+      });
+    };
     const ytWindow = window as YouTubeWindow;
-    if (ytWindow.YT?.Player) createPlayer(); else { const existing = document.querySelector('script[src="https://www.youtube.com/iframe_api"]'); ytWindow.onYouTubeIframeAPIReady = createPlayer; if (!existing) { const script = document.createElement("script"); script.src = "https://www.youtube.com/iframe_api"; document.head.appendChild(script); } }
-    return () => { cancelled = true; playerRef.current?.destroy(); playerRef.current = null; };
+    if (ytWindow.YT?.Player) createPlayer();
+    else {
+      const existing = document.querySelector(
+        'script[src="https://www.youtube.com/iframe_api"]',
+      );
+      ytWindow.onYouTubeIframeAPIReady = createPlayer;
+      if (!existing) {
+        const script = document.createElement("script");
+        script.src = "https://www.youtube.com/iframe_api";
+        document.head.appendChild(script);
+      }
+    }
+    return () => {
+      cancelled = true;
+      playerRef.current?.destroy();
+      playerRef.current = null;
+    };
   }, [selectedGame?.id, selectedGame?.youtubeId, view]);
 
-  const currentSeconds = () => playerReady && playerRef.current ? Math.floor(playerRef.current.getCurrentTime()) : Math.max(0, manualMinute * 60 + manualSecond);
+  const currentSeconds = () =>
+    playerReady && playerRef.current
+      ? Math.floor(playerRef.current.getCurrentTime())
+      : Math.max(0, manualMinute * 60 + manualSecond);
   const addAnnotation = (category: string, label: string) => {
-    if (!selectedGame) return; const seconds = currentSeconds(); const item: VideoAnnotation = { id: makeId(), seconds, category, label, note: annotationNote.trim(), createdAt: new Date().toISOString() };
-    setData((d) => ({ ...d, recordedGames: (d.recordedGames || []).map((game) => game.id === selectedGame.id ? { ...game, annotations: [...game.annotations, item].sort((a, b) => a.seconds - b.seconds) } : game) })); setAnnotationNote(""); setManualMinute(Math.floor(seconds / 60)); setManualSecond(seconds % 60);
+    if (!selectedGame) return;
+    const seconds = currentSeconds();
+    const item: VideoAnnotation = {
+      id: makeId(),
+      seconds,
+      category,
+      label,
+      note: annotationNote.trim(),
+      createdAt: new Date().toISOString(),
+    };
+    setData((d) => ({
+      ...d,
+      recordedGames: (d.recordedGames || []).map((game) =>
+        game.id === selectedGame.id
+          ? {
+              ...game,
+              annotations: [...game.annotations, item].sort(
+                (a, b) => a.seconds - b.seconds,
+              ),
+            }
+          : game,
+      ),
+    }));
+    setAnnotationNote("");
+    setManualMinute(Math.floor(seconds / 60));
+    setManualSecond(seconds % 60);
   };
-  const seekTo = (seconds: number) => { const replayFrom = Math.max(0, seconds - 3); playerRef.current?.seekTo(replayFrom, true); setManualMinute(Math.floor(replayFrom / 60)); setManualSecond(replayFrom % 60); };
+  const seekTo = (seconds: number) => {
+    const replayFrom = Math.max(0, seconds - 3);
+    playerRef.current?.seekTo(replayFrom, true);
+    setManualMinute(Math.floor(replayFrom / 60));
+    setManualSecond(replayFrom % 60);
+  };
   const toggleAnalysisFullscreen = async () => {
-    if (analysisFullscreen) { if (document.fullscreenElement) await document.exitFullscreen().catch(() => undefined); setAnalysisFullscreen(false); return; }
-    setAnalysisFullscreen(true); await analysisStageRef.current?.requestFullscreen?.().catch(() => undefined);
+    if (analysisFullscreen) {
+      if (document.fullscreenElement)
+        await document.exitFullscreen().catch(() => undefined);
+      setAnalysisFullscreen(false);
+      return;
+    }
+    setAnalysisFullscreen(true);
+    await analysisStageRef.current
+      ?.requestFullscreen?.()
+      .catch(() => undefined);
   };
   const enableNotifications = async () => {
     if (!viewer) return;
-    setNotificationBusy(true); setNotificationMessage("");
+    setNotificationBusy(true);
+    setNotificationMessage("");
     try {
-      if (!("Notification" in window) || !("serviceWorker" in navigator) || !("PushManager" in window)) throw new Error("Este navegador no admite avisos push. Prueba con Chrome o Edge actualizado.");
+      if (
+        !("Notification" in window) ||
+        !("serviceWorker" in navigator) ||
+        !("PushManager" in window)
+      )
+        throw new Error(
+          "Este navegador no admite avisos push. Prueba con Chrome o Edge actualizado.",
+        );
       const permission = await Notification.requestPermission();
-      if (permission !== "granted") throw new Error("Debes permitir las notificaciones para recibir los avisos de partidos.");
+      if (permission !== "granted")
+        throw new Error(
+          "Debes permitir las notificaciones para recibir los avisos de partidos.",
+        );
       const registration = await navigator.serviceWorker.ready;
-      const subscription = await registration.pushManager.getSubscription() || await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) });
+      const subscription =
+        (await registration.pushManager.getSubscription()) ||
+        (await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+        }));
       const subscriptionJson = subscription.toJSON();
-      const { error } = await supabase.from("push_subscriptions").upsert({
-        user_id: viewer.userId,
-        endpoint: subscription.endpoint,
-        p256dh: subscriptionJson.keys?.p256dh,
-        auth: subscriptionJson.keys?.auth,
-        enabled: true,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: "endpoint" });
+      const { error } = await supabase.from("push_subscriptions").upsert(
+        {
+          user_id: viewer.userId,
+          endpoint: subscription.endpoint,
+          p256dh: subscriptionJson.keys?.p256dh,
+          auth: subscriptionJson.keys?.auth,
+          enabled: true,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "endpoint" },
+      );
       if (error) throw error;
-      setData((current) => ({ ...current, notificationSettings: { ...(current.notificationSettings || DEFAULT_NOTIFICATION_SETTINGS), enabled: true } }));
+      setData((current) => ({
+        ...current,
+        notificationSettings: {
+          ...(current.notificationSettings || DEFAULT_NOTIFICATION_SETTINGS),
+          enabled: true,
+        },
+      }));
       setNotificationDeviceReady(true);
       setNotificationMessage("Avisos activados en este dispositivo.");
     } catch (error) {
-      setNotificationMessage(error instanceof Error ? error.message : "No se pudieron activar los avisos.");
-    } finally { setNotificationBusy(false); }
+      setNotificationMessage(
+        error instanceof Error
+          ? error.message
+          : "No se pudieron activar los avisos.",
+      );
+    } finally {
+      setNotificationBusy(false);
+    }
   };
   const disableNotifications = async () => {
     if (!viewer) return;
-    setNotificationBusy(true); setNotificationMessage("");
+    setNotificationBusy(true);
+    setNotificationMessage("");
     try {
-      const registration = "serviceWorker" in navigator ? await navigator.serviceWorker.ready : null;
+      const registration =
+        "serviceWorker" in navigator
+          ? await navigator.serviceWorker.ready
+          : null;
       const subscription = await registration?.pushManager.getSubscription();
       if (subscription) {
-        await supabase.from("push_subscriptions").update({ enabled: false, updated_at: new Date().toISOString() }).eq("user_id", viewer.userId).eq("endpoint", subscription.endpoint);
+        await supabase
+          .from("push_subscriptions")
+          .update({ enabled: false, updated_at: new Date().toISOString() })
+          .eq("user_id", viewer.userId)
+          .eq("endpoint", subscription.endpoint);
         await subscription.unsubscribe();
       }
-      const { data: remaining } = await supabase.from("push_subscriptions").select("id").eq("user_id", viewer.userId).eq("enabled", true).limit(1);
+      const { data: remaining } = await supabase
+        .from("push_subscriptions")
+        .select("id")
+        .eq("user_id", viewer.userId)
+        .eq("enabled", true)
+        .limit(1);
       if (!remaining?.length) {
-        await supabase.from("match_reminders").delete().eq("user_id", viewer.userId).is("sent_at", null);
-        setData((current) => ({ ...current, notificationSettings: { ...(current.notificationSettings || DEFAULT_NOTIFICATION_SETTINGS), enabled: false } }));
+        await supabase
+          .from("match_reminders")
+          .delete()
+          .eq("user_id", viewer.userId)
+          .is("sent_at", null);
+        setData((current) => ({
+          ...current,
+          notificationSettings: {
+            ...(current.notificationSettings || DEFAULT_NOTIFICATION_SETTINGS),
+            enabled: false,
+          },
+        }));
       }
       setNotificationDeviceReady(false);
       setNotificationMessage("Avisos desactivados en este dispositivo.");
-    } finally { setNotificationBusy(false); }
+    } finally {
+      setNotificationBusy(false);
+    }
   };
   const exportVideoReport = async () => {
     if (!selectedGame || selectedGame.annotations.length === 0) return;
-    const [{ jsPDF }, logoData] = await Promise.all([import("jspdf"), assetDataUrl("/icon-192.png")]); const doc = new jsPDF({ unit: "mm", format: "a4" }); const pageWidth = doc.internal.pageSize.getWidth(); const pageHeight = doc.internal.pageSize.getHeight(); const annotations = [...selectedGame.annotations].sort((a, b) => a.seconds - b.seconds); const generatedAt = new Intl.DateTimeFormat("es-ES", { dateStyle: "long", timeStyle: "short" }).format(new Date());
-    const drawHeader = (continued = false) => { doc.setFillColor(7, 21, 45); doc.rect(0, 0, pageWidth, 38, "F"); doc.setFillColor(11, 92, 255); doc.rect(0, 38, pageWidth, 2, "F"); doc.setTextColor(255, 255, 255); doc.setFont("helvetica", "bold"); doc.setFontSize(19); doc.text("REFFLOW", 16, 16); doc.setFontSize(10); doc.setFont("helvetica", "normal"); doc.setTextColor(193, 211, 238); doc.text(continued ? "INFORME DE ANÁLISIS ARBITRAL · CONTINUACIÓN" : "INFORME DE ANÁLISIS ARBITRAL", 16, 26); doc.setFillColor(255, 255, 255); doc.roundedRect(pageWidth - 34, 5, 25, 25, 5, 5, "F"); doc.addImage(logoData, "PNG", pageWidth - 31.5, 7.5, 20, 20); };
-    const drawSectionTitle = (title: string, y: number) => { doc.setTextColor(11, 92, 255); doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.text(title, 16, y); doc.setDrawColor(211, 222, 238); doc.line(16, y + 3, pageWidth - 16, y + 3); };
-    drawHeader(); doc.setFillColor(246, 249, 253); doc.roundedRect(14, 48, 182, 33, 4, 4, "F"); doc.setTextColor(117, 132, 153); doc.setFont("helvetica", "bold"); doc.setFontSize(7.5); doc.text("PARTIDO", 19, 56); doc.setTextColor(15, 35, 64); doc.setFontSize(13); doc.text(doc.splitTextToSize(selectedGame.title, 112) as string[], 19, 64); doc.setTextColor(117, 132, 153); doc.setFontSize(7.5); doc.text("ÁRBITRO", 137, 56); doc.text("ANOTACIONES", 137, 70); doc.setTextColor(15, 35, 64); doc.setFontSize(10); doc.text(data.settings.name || "Sin indicar", 137, 62); doc.setFontSize(11); doc.text(String(annotations.length), 137, 77);
-    doc.setFillColor(238, 244, 255); doc.roundedRect(14, 87, 182, 26, 4, 4, "F"); doc.setTextColor(11, 92, 255); doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.text("VÍDEO ORIGINAL", 19, 95); doc.setFont("helvetica", "normal"); doc.setFontSize(8.5); const videoLines = doc.splitTextToSize(selectedGame.youtubeUrl, 165) as string[]; videoLines.slice(0, 2).forEach((line, index) => doc.textWithLink(line, 19, 102 + index * 4.5, { url: selectedGame.youtubeUrl })); doc.setTextColor(99, 115, 137); doc.setFontSize(7.5); doc.text(`Informe generado el ${generatedAt}`, 19, 120); drawSectionTitle("LÍNEA DE TIEMPO · PULSA EN EL MINUTO PARA ABRIR 3 SEGUNDOS ANTES", 130); let y = 140;
-    annotations.forEach((annotation, index) => { const labelLines = doc.splitTextToSize(annotation.label, 111) as string[]; const noteLines = annotation.note ? doc.splitTextToSize(annotation.note, 111) as string[] : []; const blockHeight = Math.max(21, 11 + labelLines.length * 4.7 + noteLines.length * 4); if (y + blockHeight > pageHeight - 18) { doc.addPage(); drawHeader(true); drawSectionTitle("LÍNEA DE TIEMPO", 50); y = 60; } const color = annotationGroups.find((group) => group.name === annotation.category)?.color || "#0b5cff"; const rgb = color.match(/[a-f\d]{2}/gi)?.map((part) => parseInt(part, 16)) || [11, 92, 255]; doc.setFillColor(index % 2 === 0 ? 248 : 244, index % 2 === 0 ? 250 : 247, index % 2 === 0 ? 253 : 251); doc.roundedRect(14, y - 5, 182, blockHeight, 3, 3, "F"); doc.setFillColor(rgb[0], rgb[1], rgb[2]); doc.roundedRect(14, y - 5, 3, blockHeight, 1.5, 1.5, "F"); doc.setTextColor(11, 92, 255); doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.textWithLink(timeLabel(annotation.seconds), 22, y + 3, { url: videoAt(selectedGame, annotation.seconds) }); doc.setTextColor(124, 137, 155); doc.setFont("helvetica", "normal"); doc.setFontSize(7); doc.text(`ABRE EN ${timeLabel(Math.max(0, annotation.seconds - 3))}`, 22, y + 9); doc.setTextColor(rgb[0], rgb[1], rgb[2]); doc.setFont("helvetica", "bold"); doc.setFontSize(7.5); doc.text(annotation.category.toUpperCase(), 58, y); doc.setTextColor(20, 39, 67); doc.setFontSize(10); doc.text(labelLines, 58, y + 6); if (noteLines.length) { doc.setTextColor(99, 113, 133); doc.setFont("helvetica", "normal"); doc.setFontSize(8.5); doc.text(noteLines, 58, y + 6 + labelLines.length * 4.7); } doc.setTextColor(150, 160, 174); doc.setFontSize(7.5); doc.text(String(index + 1).padStart(2, "0"), 189, y + 2, { align: "right" }); y += blockHeight + 4; });
-    const pages = doc.getNumberOfPages(); for (let page = 1; page <= pages; page++) { doc.setPage(page); doc.setDrawColor(224, 230, 239); doc.line(16, pageHeight - 13, pageWidth - 16, pageHeight - 13); doc.setTextColor(132, 143, 159); doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.text("RefFlow · Análisis de vídeo arbitral", 16, pageHeight - 7); doc.text(`Página ${page} de ${pages}`, pageWidth - 16, pageHeight - 7, { align: "right" }); } const safeTitle = selectedGame.title.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_|_$/g, ""); doc.save(`RefFlow_Analisis_${safeTitle || "Partido"}.pdf`);
+    const [{ jsPDF }, logoData] = await Promise.all([
+      import("jspdf"),
+      assetDataUrl("/icon-192.png"),
+    ]);
+    const doc = new jsPDF({ unit: "mm", format: "a4" });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const annotations = [...selectedGame.annotations].sort(
+      (a, b) => a.seconds - b.seconds,
+    );
+    const generatedAt = new Intl.DateTimeFormat("es-ES", {
+      dateStyle: "long",
+      timeStyle: "short",
+    }).format(new Date());
+    const drawHeader = (continued = false) => {
+      doc.setFillColor(7, 21, 45);
+      doc.rect(0, 0, pageWidth, 38, "F");
+      doc.setFillColor(11, 92, 255);
+      doc.rect(0, 38, pageWidth, 2, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(19);
+      doc.text("REFFLOW", 16, 16);
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(193, 211, 238);
+      doc.text(
+        continued
+          ? "INFORME DE ANÁLISIS ARBITRAL · CONTINUACIÓN"
+          : "INFORME DE ANÁLISIS ARBITRAL",
+        16,
+        26,
+      );
+      doc.setFillColor(255, 255, 255);
+      doc.roundedRect(pageWidth - 34, 5, 25, 25, 5, 5, "F");
+      doc.addImage(logoData, "PNG", pageWidth - 31.5, 7.5, 20, 20);
+    };
+    const drawSectionTitle = (title: string, y: number) => {
+      doc.setTextColor(11, 92, 255);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      doc.text(title, 16, y);
+      doc.setDrawColor(211, 222, 238);
+      doc.line(16, y + 3, pageWidth - 16, y + 3);
+    };
+    drawHeader();
+    doc.setFillColor(246, 249, 253);
+    doc.roundedRect(14, 48, 182, 33, 4, 4, "F");
+    doc.setTextColor(117, 132, 153);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7.5);
+    doc.text("PARTIDO", 19, 56);
+    doc.setTextColor(15, 35, 64);
+    doc.setFontSize(13);
+    doc.text(doc.splitTextToSize(selectedGame.title, 112) as string[], 19, 64);
+    doc.setTextColor(117, 132, 153);
+    doc.setFontSize(7.5);
+    doc.text("ÁRBITRO", 137, 56);
+    doc.text("ANOTACIONES", 137, 70);
+    doc.setTextColor(15, 35, 64);
+    doc.setFontSize(10);
+    doc.text(data.settings.name || "Sin indicar", 137, 62);
+    doc.setFontSize(11);
+    doc.text(String(annotations.length), 137, 77);
+    doc.setFillColor(238, 244, 255);
+    doc.roundedRect(14, 87, 182, 26, 4, 4, "F");
+    doc.setTextColor(11, 92, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.text("VÍDEO ORIGINAL", 19, 95);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    const videoLines = doc.splitTextToSize(
+      selectedGame.youtubeUrl,
+      165,
+    ) as string[];
+    videoLines
+      .slice(0, 2)
+      .forEach((line, index) =>
+        doc.textWithLink(line, 19, 102 + index * 4.5, {
+          url: selectedGame.youtubeUrl,
+        }),
+      );
+    doc.setTextColor(99, 115, 137);
+    doc.setFontSize(7.5);
+    doc.text(`Informe generado el ${generatedAt}`, 19, 120);
+    drawSectionTitle(
+      "LÍNEA DE TIEMPO · PULSA EN EL MINUTO PARA ABRIR 3 SEGUNDOS ANTES",
+      130,
+    );
+    let y = 140;
+    annotations.forEach((annotation, index) => {
+      const labelLines = doc.splitTextToSize(annotation.label, 111) as string[];
+      const noteLines = annotation.note
+        ? (doc.splitTextToSize(annotation.note, 111) as string[])
+        : [];
+      const blockHeight = Math.max(
+        21,
+        11 + labelLines.length * 4.7 + noteLines.length * 4,
+      );
+      if (y + blockHeight > pageHeight - 18) {
+        doc.addPage();
+        drawHeader(true);
+        drawSectionTitle("LÍNEA DE TIEMPO", 50);
+        y = 60;
+      }
+      const color =
+        annotationGroups.find((group) => group.name === annotation.category)
+          ?.color || "#0b5cff";
+      const rgb = color
+        .match(/[a-f\d]{2}/gi)
+        ?.map((part) => parseInt(part, 16)) || [11, 92, 255];
+      doc.setFillColor(
+        index % 2 === 0 ? 248 : 244,
+        index % 2 === 0 ? 250 : 247,
+        index % 2 === 0 ? 253 : 251,
+      );
+      doc.roundedRect(14, y - 5, 182, blockHeight, 3, 3, "F");
+      doc.setFillColor(rgb[0], rgb[1], rgb[2]);
+      doc.roundedRect(14, y - 5, 3, blockHeight, 1.5, 1.5, "F");
+      doc.setTextColor(11, 92, 255);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.textWithLink(timeLabel(annotation.seconds), 22, y + 3, {
+        url: videoAt(selectedGame, annotation.seconds),
+      });
+      doc.setTextColor(124, 137, 155);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7);
+      doc.text(
+        `ABRE EN ${timeLabel(Math.max(0, annotation.seconds - 3))}`,
+        22,
+        y + 9,
+      );
+      doc.setTextColor(rgb[0], rgb[1], rgb[2]);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(7.5);
+      doc.text(annotation.category.toUpperCase(), 58, y);
+      doc.setTextColor(20, 39, 67);
+      doc.setFontSize(10);
+      doc.text(labelLines, 58, y + 6);
+      if (noteLines.length) {
+        doc.setTextColor(99, 113, 133);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8.5);
+        doc.text(noteLines, 58, y + 6 + labelLines.length * 4.7);
+      }
+      doc.setTextColor(150, 160, 174);
+      doc.setFontSize(7.5);
+      doc.text(String(index + 1).padStart(2, "0"), 189, y + 2, {
+        align: "right",
+      });
+      y += blockHeight + 4;
+    });
+    const pages = doc.getNumberOfPages();
+    for (let page = 1; page <= pages; page++) {
+      doc.setPage(page);
+      doc.setDrawColor(224, 230, 239);
+      doc.line(16, pageHeight - 13, pageWidth - 16, pageHeight - 13);
+      doc.setTextColor(132, 143, 159);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7.5);
+      doc.text("RefFlow · Análisis de vídeo arbitral", 16, pageHeight - 7);
+      doc.text(`Página ${page} de ${pages}`, pageWidth - 16, pageHeight - 7, {
+        align: "right",
+      });
+    }
+    const safeTitle = selectedGame.title
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9]+/g, "_")
+      .replace(/^_|_$/g, "");
+    doc.save(`RefFlow_Analisis_${safeTitle || "Partido"}.pdf`);
   };
 
   const importPdf = async (file?: File) => {
     if (!file) return;
-    const looksLikePdf = file.type === "application/pdf" || file.name.toLocaleLowerCase("es-ES").endsWith(".pdf");
-    if (!looksLikePdf) { setPdfError("El archivo seleccionado no es un PDF."); setPdfState("error"); return; }
-    if (file.size > 20 * 1024 * 1024) { setPdfError("El PDF supera el límite de 20 MB."); setPdfState("error"); return; }
-    setPdfState("reading"); setPdfImport(null); setPdfFileName(file.name); setPdfError("");
+    const looksLikePdf =
+      file.type === "application/pdf" ||
+      file.name.toLocaleLowerCase("es-ES").endsWith(".pdf");
+    if (!looksLikePdf) {
+      setPdfError("El archivo seleccionado no es un PDF.");
+      setPdfState("error");
+      return;
+    }
+    if (file.size > 20 * 1024 * 1024) {
+      setPdfError("El PDF supera el límite de 20 MB.");
+      setPdfState("error");
+      return;
+    }
+    setPdfState("reading");
+    setPdfImport(null);
+    setPdfFileName(file.name);
+    setPdfError("");
     try {
       const pages = await extractPdfTextPages(file);
       const parsed = parseFbclmDesignationPages(pages);
       if (parsed.matches.length === 0) throw new Error("FORMATO_NO_RECONOCIDO");
-      setPdfImport(parsed); setPdfState("ready");
+      const matches = await Promise.all(parsed.matches.map(resolveFbclmMatch));
+      setPdfImport({ ...parsed, matches });
+      setPdfState("ready");
     } catch (error) {
       console.error("[RefFlow PDF] No se pudo analizar la designación", error);
       setPdfImport(null);
-      setPdfError(error instanceof Error && error.message === "FORMATO_NO_RECONOCIDO" ? "El PDF se abre correctamente, pero su formato de designaciones no coincide con el de FBCLM." : "No se pudo abrir el lector de PDF. Recarga la página e inténtalo otra vez.");
+      setPdfError(
+        error instanceof Error && error.message === "FORMATO_NO_RECONOCIDO"
+          ? "El PDF se abre correctamente, pero su formato de designaciones no coincide con el de FBCLM."
+          : "No se pudo abrir el lector de PDF. Recarga la página e inténtalo otra vez.",
+      );
       setPdfState("error");
     }
   };
@@ -827,55 +2893,153 @@ export default function RefFlow() {
     if (!pdfImport) return;
     const officials = uniqueImportedOfficials(pdfImport);
     const mergedContacts = mergeImportedOfficials(data.contacts, officials);
-    const existingKeys = new Set(data.matches.map((match) => match.matchNumber ? `number:${match.date}|${match.matchNumber}` : `teams:${match.date}|${match.time}|${normalizeRateField(match.home)}|${normalizeRateField(match.away)}`));
-    let skipped = 0; let importedRates = 0;
+    const existingKeys = new Set(
+      data.matches.map((match) =>
+        match.matchNumber
+          ? `number:${match.date}|${match.matchNumber}`
+          : `teams:${match.date}|${match.time}|${normalizeRateField(match.home)}|${normalizeRateField(match.away)}`,
+      ),
+    );
+    let skipped = 0;
+    let importedRates = 0;
     const matches = pdfImport.matches.flatMap((designation) => {
-      const key = designation.matchNumber ? `number:${designation.date}|${designation.matchNumber}` : `teams:${designation.date}|${designation.time}|${normalizeRateField(designation.home)}|${normalizeRateField(designation.away)}`;
-      if (existingKeys.has(key)) { skipped += 1; return []; }
+      const key = designation.matchNumber
+        ? `number:${designation.date}|${designation.matchNumber}`
+        : `teams:${designation.date}|${designation.time}|${normalizeRateField(designation.home)}|${normalizeRateField(designation.away)}`;
+      if (existingKeys.has(key)) {
+        skipped += 1;
+        return [];
+      }
       existingKeys.add(key);
-      const partners = designation.officials.filter((official) => !pdfImport.designatedLicenseId || official.licenseId !== pdfImport.designatedLicenseId).map((official) => official.name);
-      const importedCompetition = importedCompetitionForCategory(designation.category, competition);
-      const recommendedShirt = shirtRecommendation(designation.homeColor, designation.awayColor, data.settings.shirtColors);
-      const match: Match = { id: makeId(), competition: importedCompetition, matchNumber: designation.matchNumber, date: designation.date, time: designation.time, home: designation.home, away: designation.away, homeColor: designation.homeColor, awayColor: designation.awayColor, shirtRecommendation: recommendedShirt || undefined, category: designation.category, role: designation.role, venue: designation.venue || "Pabellón pendiente", gross: 0, diets: 0, retention: RETENTION_RATE, partners, video: false, status: "confirmado" };
-      if (findSavedRate(data.rates, match.category, match.role)) importedRates += 1;
+      const partners = designation.officials
+        .filter(
+          (official) =>
+            !pdfImport.designatedLicenseId ||
+            official.licenseId !== pdfImport.designatedLicenseId,
+        )
+        .map((official) => official.name);
+      const importedCompetition = importedCompetitionForCategory(
+        designation.category,
+        competition,
+      );
+      const recommendedShirt = shirtRecommendation(
+        designation.homeColor,
+        designation.awayColor,
+        data.settings.shirtColors,
+      );
+      const match: Match = {
+        id: makeId(),
+        competition: importedCompetition,
+        matchNumber: designation.matchNumber,
+        fbclmUrl: designation.fbclmUrl,
+        fbclmSearchUrl: designation.fbclmSearchUrl,
+        date: designation.date,
+        time: designation.time,
+        home: designation.home,
+        away: designation.away,
+        homeColor: designation.homeColor,
+        awayColor: designation.awayColor,
+        shirtRecommendation: recommendedShirt || undefined,
+        category: designation.category,
+        role: designation.role,
+        venue: designation.venue || "Pabellón pendiente",
+        gross: 0,
+        diets: 0,
+        retention: RETENTION_RATE,
+        partners,
+        video: false,
+        status: "confirmado",
+      };
+      if (findSavedRate(data.rates, match.category, match.role))
+        importedRates += 1;
       return [applySavedRate(match, data.rates)];
     });
-    setData((current) => ({ ...current, matches: [...matches, ...current.matches], contacts: mergedContacts.contacts }));
-    const automaticallySchool = matches.filter((match) => match.competition === "escolar" && competition !== "escolar").length;
-    setView(matches.length > 0 && matches.every((match) => match.competition === "escolar") ? "escolares" : competition === "escolar" ? "escolares" : "regionales");
-    setNotice(`${matches.length} ${matches.length === 1 ? "designación añadida" : "designaciones añadidas"}${importedRates ? ` · ${importedRates} con tarifa importada` : ""}${automaticallySchool ? ` · ${automaticallySchool} provinciales clasificadas como escolares` : ""}${mergedContacts.added ? ` · ${mergedContacts.added} compañeros nuevos en Árbitros` : ""}${mergedContacts.updated ? ` · ${mergedContacts.updated} contactos completados` : ""}${skipped ? ` · ${skipped} duplicadas omitidas` : ""}. Revisa los datos antes de añadir el partido al calendario.`);
-    setPdfState("idle"); setPdfImport(null); setPdfFileName(""); setPdfError("");
+    setData((current) => ({
+      ...current,
+      matches: [...matches, ...current.matches],
+      contacts: mergedContacts.contacts,
+    }));
+    const automaticallySchool = matches.filter(
+      (match) => match.competition === "escolar" && competition !== "escolar",
+    ).length;
+    setView(
+      matches.length > 0 &&
+        matches.every((match) => match.competition === "escolar")
+        ? "escolares"
+        : competition === "escolar"
+          ? "escolares"
+          : "regionales",
+    );
+    setNotice(
+      `${matches.length} ${matches.length === 1 ? "designación añadida" : "designaciones añadidas"}${importedRates ? ` · ${importedRates} con tarifa importada` : ""}${automaticallySchool ? ` · ${automaticallySchool} provinciales clasificadas como escolares` : ""}${mergedContacts.added ? ` · ${mergedContacts.added} compañeros nuevos en Árbitros` : ""}${mergedContacts.updated ? ` · ${mergedContacts.updated} contactos completados` : ""}${skipped ? ` · ${skipped} duplicadas omitidas` : ""}. Revisa los datos antes de añadir el partido al calendario.`,
+    );
+    setPdfState("idle");
+    setPdfImport(null);
+    setPdfFileName("");
+    setPdfError("");
     if (fileRef.current) fileRef.current.value = "";
   };
   const discardPdf = () => {
-    setPdfState("idle"); setPdfImport(null); setPdfFileName(""); setPdfError("");
+    setPdfState("idle");
+    setPdfImport(null);
+    setPdfFileName("");
+    setPdfError("");
     if (fileRef.current) fileRef.current.value = "";
   };
 
   const analyzeRatePdf = async (file?: File) => {
     if (!file) return;
-    const looksLikePdf = file.type === "application/pdf" || file.name.toLocaleLowerCase("es-ES").endsWith(".pdf");
-    if (!looksLikePdf) { setRatePdfError("El archivo seleccionado no es un PDF."); setRatePdfState("error"); return; }
-    if (file.size > 20 * 1024 * 1024) { setRatePdfError("El PDF supera el límite de 20 MB."); setRatePdfState("error"); return; }
-    setRatePdfState("reading"); setRatePdfPreview(null); setRatePdfFileName(file.name); setRatePdfError("");
+    const looksLikePdf =
+      file.type === "application/pdf" ||
+      file.name.toLocaleLowerCase("es-ES").endsWith(".pdf");
+    if (!looksLikePdf) {
+      setRatePdfError("El archivo seleccionado no es un PDF.");
+      setRatePdfState("error");
+      return;
+    }
+    if (file.size > 20 * 1024 * 1024) {
+      setRatePdfError("El PDF supera el límite de 20 MB.");
+      setRatePdfState("error");
+      return;
+    }
+    setRatePdfState("reading");
+    setRatePdfPreview(null);
+    setRatePdfFileName(file.name);
+    setRatePdfError("");
     try {
       const parsed = parseFbclmRatePages(await extractPdfTextPages(file));
-      setRatePdfPreview(parsed); setRatePdfState("ready");
+      setRatePdfPreview(parsed);
+      setRatePdfState("ready");
     } catch (error) {
-      console.error("[RefFlow PDF] No se pudo analizar la tabla de tarifas", error);
+      console.error(
+        "[RefFlow PDF] No se pudo analizar la tabla de tarifas",
+        error,
+      );
       setRatePdfPreview(null);
-      setRatePdfError(error instanceof Error && error.message === "FORMATO_TARIFAS_NO_RECONOCIDO" ? "No se ha encontrado una tabla de tarifas F.B.C.L.M. válida con su temporada y sus seis columnas de funciones." : "No se pudo abrir el lector de PDF. Recarga la página e inténtalo otra vez.");
+      setRatePdfError(
+        error instanceof Error &&
+          error.message === "FORMATO_TARIFAS_NO_RECONOCIDO"
+          ? "No se ha encontrado una tabla de tarifas F.B.C.L.M. válida con su temporada y sus seis columnas de funciones."
+          : "No se pudo abrir el lector de PDF. Recarga la página e inténtalo otra vez.",
+      );
       setRatePdfState("error");
     }
   };
   const discardRatePdf = () => {
-    setRatePdfState("idle"); setRatePdfPreview(null); setRatePdfFileName(""); setRatePdfError("");
+    setRatePdfState("idle");
+    setRatePdfPreview(null);
+    setRatePdfFileName("");
+    setRatePdfError("");
     if (rateFileRef.current) rateFileRef.current.value = "";
   };
   const applyRatePdf = () => {
     if (!ratePdfPreview) return;
-    const hasExpensePolicy = ratePdfPreview.diets.length > 0 && ratePdfPreview.mileage.length > 0;
-    const seasonKey = ratePdfPreview.season.replace(/\D/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+    const hasExpensePolicy =
+      ratePdfPreview.diets.length > 0 && ratePdfPreview.mileage.length > 0;
+    const seasonKey = ratePdfPreview.season
+      .replace(/\D/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "");
     const importedRates: Rate[] = ratePdfPreview.rates.map((rate, index) => ({
       ...rate,
       id: `official-imported-${seasonKey}-${index}`,
@@ -884,16 +3048,33 @@ export default function RefFlow() {
     }));
     const importedKeys = new Set(importedRates.map(fixedRateKey));
     setData((current) => {
-      const customRates = current.rates.filter((rate) => !rate.id.startsWith("official-") && !importedKeys.has(fixedRateKey(rate)));
+      const customRates = current.rates.filter(
+        (rate) =>
+          !rate.id.startsWith("official-") &&
+          !importedKeys.has(fixedRateKey(rate)),
+      );
       return {
         ...current,
         dataVersion: CURRENT_DATA_VERSION,
         rates: mergeOfficialRates([...importedRates, ...customRates]),
-        rateSheet: { season: ratePdfPreview.season, fileName: ratePdfFileName, importedAt: new Date().toISOString(), source: "pdf" },
-        expensePolicy: hasExpensePolicy ? { season: ratePdfPreview.season, diets: ratePdfPreview.diets, mileage: ratePdfPreview.mileage } : current.expensePolicy || DEFAULT_EXPENSE_POLICY,
+        rateSheet: {
+          season: ratePdfPreview.season,
+          fileName: ratePdfFileName,
+          importedAt: new Date().toISOString(),
+          source: "pdf",
+        },
+        expensePolicy: hasExpensePolicy
+          ? {
+              season: ratePdfPreview.season,
+              diets: ratePdfPreview.diets,
+              mileage: ratePdfPreview.mileage,
+            }
+          : current.expensePolicy || DEFAULT_EXPENSE_POLICY,
       };
     });
-    setNotice(`${importedRates.length} tarifas oficiales de ${ratePdfPreview.season} actualizadas con retención fija del 2 %.${hasExpensePolicy ? " También se actualizaron dietas y kilometraje." : ""} FEB, Liga Provincial Guadalajara y trofeos se han omitido.`);
+    setNotice(
+      `${importedRates.length} tarifas oficiales de ${ratePdfPreview.season} actualizadas con retención fija del 2 %.${hasExpensePolicy ? " También se actualizaron dietas y kilometraje." : ""} FEB, Liga Provincial Guadalajara y trofeos se han omitido.`,
+    );
     discardRatePdf();
   };
 
@@ -903,64 +3084,215 @@ export default function RefFlow() {
     wb.creator = "RefFlow";
     // Preserve visible totals even in spreadsheet viewers that do not recalculate formulas on open.
     wb.calcProperties.fullCalcOnLoad = true;
-    const months = ["SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE", "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO"];
+    const months = [
+      "SEPTIEMBRE",
+      "OCTUBRE",
+      "NOVIEMBRE",
+      "DICIEMBRE",
+      "ENERO",
+      "FEBRERO",
+      "MARZO",
+      "ABRIL",
+      "MAYO",
+      "JUNIO",
+    ];
     const nums = [9, 10, 11, 12, 1, 2, 3, 4, 5, 6];
     months.forEach((month, index) => {
-      const ws = wb.addWorksheet(month, { views: [{ state: "frozen", ySplit: 4 }] });
+      const ws = wb.addWorksheet(month, {
+        views: [{ state: "frozen", ySplit: 4 }],
+      });
       ws.mergeCells("A1:L1");
       const title = ws.getCell("A1");
       title.value = `${month} · TEMPORADA ${data.settings.season}`;
       title.font = { bold: true, size: 18, color: { argb: "FFFFFFFF" } };
-      title.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0B5CFF" } };
+      title.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FF0B5CFF" },
+      };
       title.alignment = { horizontal: "center", vertical: "middle" };
       ws.getRow(1).height = 34;
       ws.addRow([]);
       const year = seasonStartYear + (nums[index] < 9 ? 1 : 0);
-      const monthMatches = data.matches.filter((match) => Number(match.date.slice(0, 4)) === year && Number(match.date.slice(5, 7)) === nums[index]);
-      const addSection = (label: string, competition: MatchCompetition, sectionColor: string) => {
+      const monthMatches = data.matches.filter(
+        (match) =>
+          Number(match.date.slice(0, 4)) === year &&
+          Number(match.date.slice(5, 7)) === nums[index],
+      );
+      const addSection = (
+        label: string,
+        competition: MatchCompetition,
+        sectionColor: string,
+      ) => {
         const sectionRow = ws.addRow([label]);
         for (let col = 1; col <= 12; col += 1) {
-          sectionRow.getCell(col).fill = { type: "pattern", pattern: "solid", fgColor: { argb: sectionColor } };
-          sectionRow.getCell(col).font = { bold: true, color: { argb: "FFFFFFFF" } };
+          sectionRow.getCell(col).fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: sectionColor },
+          };
+          sectionRow.getCell(col).font = {
+            bold: true,
+            color: { argb: "FFFFFFFF" },
+          };
         }
         ws.mergeCells(sectionRow.number, 1, sectionRow.number, 12);
         sectionRow.height = 26;
-        sectionRow.getCell(1).alignment = { horizontal: "left", vertical: "middle" };
-        const header = ws.addRow(["FECHA", "HORA", "LOCAL", "VISITANTE", "CATEGORÍA", "FUNCIÓN", "TARIFA", "KM", "DIETAS", "KILOMETRAJE", "TOTAL BRUTO", "TOTAL NETO"]);
+        sectionRow.getCell(1).alignment = {
+          horizontal: "left",
+          vertical: "middle",
+        };
+        const header = ws.addRow([
+          "FECHA",
+          "HORA",
+          "LOCAL",
+          "VISITANTE",
+          "CATEGORÍA",
+          "FUNCIÓN",
+          "TARIFA",
+          "KM",
+          "DIETAS",
+          "KILOMETRAJE",
+          "TOTAL BRUTO",
+          "TOTAL NETO",
+        ]);
         header.font = { bold: true, color: { argb: "FFFFFFFF" } };
         header.height = 28;
         header.eachCell((cell, col) => {
-          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: col <= 2 ? "FF29415F" : col <= 6 ? "FF0B5CFF" : col <= 10 ? "FFFF8A1D" : "FF16A085" } };
+          cell.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: {
+              argb:
+                col <= 2
+                  ? "FF29415F"
+                  : col <= 6
+                    ? "FF0B5CFF"
+                    : col <= 10
+                      ? "FFFF8A1D"
+                      : "FF16A085",
+            },
+          };
           cell.alignment = { horizontal: "center", vertical: "middle" };
         });
-        const sectionMatches = monthMatches.filter((match) => match.competition === competition);
+        const sectionMatches = monthMatches.filter(
+          (match) => match.competition === competition,
+        );
         const firstMatchRow = ws.rowCount + 1;
-        sectionMatches.forEach((match) => ws.addRow([match.date, match.time, match.home, match.away, match.friendly ? `${match.category} · AMISTOSO` : match.category, match.role, payableTariff(match), match.mileageKm || 0, match.diets, mileageAmount(match), grossWithExpenses(match), net(match)]));
+        sectionMatches.forEach((match) =>
+          ws.addRow([
+            match.date,
+            match.time,
+            match.home,
+            match.away,
+            match.friendly ? `${match.category} · AMISTOSO` : match.category,
+            match.role,
+            payableTariff(match),
+            match.mileageKm || 0,
+            match.diets,
+            mileageAmount(match),
+            grossWithExpenses(match),
+            net(match),
+          ]),
+        );
         if (sectionMatches.length === 0) {
-          const emptyRow = ws.addRow([`Sin partidos ${competition === "regional" ? "regionales" : "escolares"} este mes`]);
+          const emptyRow = ws.addRow([
+            `Sin partidos ${competition === "regional" ? "regionales" : "escolares"} este mes`,
+          ]);
           emptyRow.font = { italic: true, color: { argb: "FF7D899B" } };
           ws.mergeCells(emptyRow.number, 1, emptyRow.number, 12);
         }
         const lastMatchRow = ws.rowCount;
-        const grossTotalValue = sectionMatches.reduce((sum, match) => sum + grossWithExpenses(match), 0);
-        const netTotalValue = sectionMatches.reduce((sum, match) => sum + net(match), 0);
-        const grossTotal = sectionMatches.length ? { formula: `SUM(K${firstMatchRow}:K${lastMatchRow})`, result: grossTotalValue } : 0;
-        const netTotal = sectionMatches.length ? { formula: `SUM(L${firstMatchRow}:L${lastMatchRow})`, result: netTotalValue } : 0;
-        const totalRow = ws.addRow(["", "", "", "", "", `TOTAL ${label}`, "", "", "", "", grossTotal, netTotal]);
+        const grossTotalValue = sectionMatches.reduce(
+          (sum, match) => sum + grossWithExpenses(match),
+          0,
+        );
+        const netTotalValue = sectionMatches.reduce(
+          (sum, match) => sum + net(match),
+          0,
+        );
+        const grossTotal = sectionMatches.length
+          ? {
+              formula: `SUM(K${firstMatchRow}:K${lastMatchRow})`,
+              result: grossTotalValue,
+            }
+          : 0;
+        const netTotal = sectionMatches.length
+          ? {
+              formula: `SUM(L${firstMatchRow}:L${lastMatchRow})`,
+              result: netTotalValue,
+            }
+          : 0;
+        const totalRow = ws.addRow([
+          "",
+          "",
+          "",
+          "",
+          "",
+          `TOTAL ${label}`,
+          "",
+          "",
+          "",
+          "",
+          grossTotal,
+          netTotal,
+        ]);
         totalRow.font = { bold: true };
-        totalRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE7F0FF" } };
+        totalRow.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFE7F0FF" },
+        };
         ws.addRow([]);
       };
       addSection("REGIONALES", "regional", "FF0B5CFF");
       addSection("ESCOLARES", "escolar", "FFF47B20");
-      const monthlyGross = monthMatches.reduce((sum, match) => sum + grossWithExpenses(match), 0);
-      const monthlyNet = monthMatches.reduce((sum, match) => sum + net(match), 0);
-      const monthlyTotalRow = ws.addRow(["", "", "", "", "", "TOTAL DEL MES", "", "", "", "", monthlyGross, monthlyNet]);
+      const monthlyGross = monthMatches.reduce(
+        (sum, match) => sum + grossWithExpenses(match),
+        0,
+      );
+      const monthlyNet = monthMatches.reduce(
+        (sum, match) => sum + net(match),
+        0,
+      );
+      const monthlyTotalRow = ws.addRow([
+        "",
+        "",
+        "",
+        "",
+        "",
+        "TOTAL DEL MES",
+        "",
+        "",
+        "",
+        "",
+        monthlyGross,
+        monthlyNet,
+      ]);
       monthlyTotalRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
-      monthlyTotalRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF07152D" } };
+      monthlyTotalRow.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FF07152D" },
+      };
       monthlyTotalRow.height = 28;
-      [7, 9, 10, 11, 12].forEach((col) => { ws.getColumn(col).numFmt = '#,##0.00 [$€-es-ES]'; });
-      ws.columns = [{ width: 13 }, { width: 9 }, { width: 23 }, { width: 23 }, { width: 25 }, { width: 20 }, { width: 12 }, { width: 9 }, { width: 12 }, { width: 15 }, { width: 15 }, { width: 15 }];
+      [7, 9, 10, 11, 12].forEach((col) => {
+        ws.getColumn(col).numFmt = "#,##0.00 [$€-es-ES]";
+      });
+      ws.columns = [
+        { width: 13 },
+        { width: 9 },
+        { width: 23 },
+        { width: 23 },
+        { width: 25 },
+        { width: 20 },
+        { width: 12 },
+        { width: 9 },
+        { width: 12 },
+        { width: 15 },
+        { width: 15 },
+        { width: 15 },
+      ];
     });
     const summary = wb.addWorksheet("RESUMEN");
     summary.columns = [{ width: 28 }, { width: 18 }];
@@ -970,20 +3302,39 @@ export default function RefFlow() {
     summary.addRow(["Este mes", monthTotal]);
     summary.addRow(["Toda la temporada", total]);
     summary.addRow(["Partidos", data.matches.length]);
-    summary.getRow(1).font = { bold: true, size: 18, color: { argb: "FFFFFFFF" } };
-    summary.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF07152D" } };
-    [3, 4, 5].forEach((row) => { summary.getCell(row, 2).numFmt = '#,##0.00 [$€-es-ES]'; });
+    summary.getRow(1).font = {
+      bold: true,
+      size: 18,
+      color: { argb: "FFFFFFFF" },
+    };
+    summary.getRow(1).fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FF07152D" },
+    };
+    [3, 4, 5].forEach((row) => {
+      summary.getCell(row, 2).numFmt = "#,##0.00 [$€-es-ES]";
+    });
     const buffer = await wb.xlsx.writeBuffer();
-    saveBlob(new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), `RefFlow_Temporada_${data.settings.season.replace("/", "-")}.xlsx`);
+    saveBlob(
+      new Blob([buffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      }),
+      `RefFlow_Temporada_${data.settings.season.replace("/", "-")}.xlsx`,
+    );
   };
 
   const currentLabel = nav.find((item) => item.id === view)?.label;
   const selectSeason = (seasonId: string) => {
     if (seasonId === data.activeSeasonId) return;
-    const selected = data.seasonArchives.find((season) => season.id === seasonId);
+    const selected = data.seasonArchives.find(
+      (season) => season.id === seasonId,
+    );
     if (!selected) return;
     setData((current) => {
-      const target = current.seasonArchives.find((season) => season.id === seasonId);
+      const target = current.seasonArchives.find(
+        (season) => season.id === seasonId,
+      );
       if (!target) return current;
       const currentSnapshot = seasonSnapshot(current);
       return {
@@ -992,15 +3343,34 @@ export default function RefFlow() {
         seasonStatus: target.status,
         matches: target.matches,
         rates: target.rates,
-        rateSheet: target.rateSheet || (target.rates.some((rate) => rate.id.startsWith("official-imported-")) ? current.rateSheet : DEFAULT_RATE_SHEET),
-        expensePolicy: target.expensePolicy || current.expensePolicy || DEFAULT_EXPENSE_POLICY,
+        rateSheet:
+          target.rateSheet ||
+          (target.rates.some((rate) => rate.id.startsWith("official-imported-"))
+            ? current.rateSheet
+            : DEFAULT_RATE_SHEET),
+        expensePolicy:
+          target.expensePolicy ||
+          current.expensePolicy ||
+          DEFAULT_EXPENSE_POLICY,
         contacts: target.contacts,
         recordedGames: target.recordedGames,
-        settings: { ...current.settings, season: target.name, earningsGoal: target.earningsGoal },
-        seasonArchives: [currentSnapshot, ...current.seasonArchives.filter((season) => season.id !== target.id && season.id !== currentSnapshot.id)],
+        settings: {
+          ...current.settings,
+          season: target.name,
+          earningsGoal: target.earningsGoal,
+        },
+        seasonArchives: [
+          currentSnapshot,
+          ...current.seasonArchives.filter(
+            (season) =>
+              season.id !== target.id && season.id !== currentSnapshot.id,
+          ),
+        ],
       };
     });
-    setEarningsPeriod("general"); setSelectedGameId(""); setSearch("");
+    setEarningsPeriod("general");
+    setSelectedGameId("");
+    setSearch("");
     setNotice(`Mostrando la temporada ${shortSeasonName(selected.name)}.`);
   };
   const closeCurrentSeason = () => {
@@ -1010,48 +3380,79 @@ export default function RefFlow() {
       ...current,
       activeSeasonId: seasonIdFor(newSeasonName),
       seasonStatus: "open",
-      seasonArchives: [seasonSnapshot(current, "closed"), ...current.seasonArchives.filter((season) => season.id !== current.activeSeasonId)],
+      seasonArchives: [
+        seasonSnapshot(current, "closed"),
+        ...current.seasonArchives.filter(
+          (season) => season.id !== current.activeSeasonId,
+        ),
+      ],
       matches: [],
       rates: current.rates.map((rate) => ({ ...rate })),
       contacts: current.contacts.map((contact) => ({ ...contact })),
       recordedGames: [],
       settings: { ...current.settings, season: newSeasonName },
     }));
-    setEarningsPeriod("general"); setSelectedGameId(""); setSearch(""); setCloseSeasonOpen(false);
-    setNotice(`Temporada ${closedName} cerrada. Ya estás en la ${shortSeasonName(newSeasonName)}.`);
+    setEarningsPeriod("general");
+    setSelectedGameId("");
+    setSearch("");
+    setCloseSeasonOpen(false);
+    setNotice(
+      `Temporada ${closedName} cerrada. Ya estás en la ${shortSeasonName(newSeasonName)}.`,
+    );
   };
   const saveUsername = async () => {
     if (!viewer) return;
     const username = normalizeUsername(usernameDraft);
     if (!/^[a-z0-9][a-z0-9._-]{2,23}$/.test(username)) {
-      setProfileMessage("Usa entre 3 y 24 caracteres: letras, números, punto, guion o guion bajo.");
+      setProfileMessage(
+        "Usa entre 3 y 24 caracteres: letras, números, punto, guion o guion bajo.",
+      );
       return;
     }
-    setProfileBusy(true); setProfileMessage("");
-    const { error } = await supabase.from("profiles").upsert({
-      user_id: viewer.userId,
-      username,
-      email: viewer.email,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: "user_id" });
+    setProfileBusy(true);
+    setProfileMessage("");
+    const { error } = await supabase.from("profiles").upsert(
+      {
+        user_id: viewer.userId,
+        username,
+        email: viewer.email,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id" },
+    );
     if (error) {
-      setProfileMessage(error.code === "23505" ? "Ese nombre de usuario ya está en uso." : "No se pudo guardar el nombre de usuario.");
+      setProfileMessage(
+        error.code === "23505"
+          ? "Ese nombre de usuario ya está en uso."
+          : "No se pudo guardar el nombre de usuario.",
+      );
     } else {
       setUsernameDraft(username);
-      setData((current) => ({ ...current, settings: { ...current.settings, username } }));
-      setProfileMessage("Nombre de usuario guardado. Ya puedes usarlo para iniciar sesión.");
+      setData((current) => ({
+        ...current,
+        settings: { ...current.settings, username },
+      }));
+      setProfileMessage(
+        "Nombre de usuario guardado. Ya puedes usarlo para iniciar sesión.",
+      );
     }
     setProfileBusy(false);
   };
   const changeProfileImage = async (file?: File) => {
     if (!file) return;
-    setProfileBusy(true); setProfileMessage("");
+    setProfileBusy(true);
+    setProfileMessage("");
     try {
       const profileImage = await resizeProfileImage(file);
-      setData((current) => ({ ...current, settings: { ...current.settings, profileImage } }));
+      setData((current) => ({
+        ...current,
+        settings: { ...current.settings, profileImage },
+      }));
       setProfileMessage("Foto actualizada.");
     } catch (error) {
-      setProfileMessage(error instanceof Error ? error.message : "No se pudo guardar la foto.");
+      setProfileMessage(
+        error instanceof Error ? error.message : "No se pudo guardar la foto.",
+      );
     } finally {
       setProfileBusy(false);
       if (profileFileRef.current) profileFileRef.current.value = "";
@@ -1066,123 +3467,2553 @@ export default function RefFlow() {
         const { data: result, error } = await supabase.auth.signUp({
           email: authEmail.trim(),
           password: authPassword,
-          options: { data: { full_name: authName.trim() }, emailRedirectTo: window.location.origin },
+          options: {
+            data: { full_name: authName.trim() },
+            emailRedirectTo: window.location.origin,
+          },
         });
         if (error) throw error;
-        if (!result.session) setAuthMessage("Cuenta creada. Revisa tu correo para confirmar el acceso y después vuelve a RefFlow.");
+        if (!result.session)
+          setAuthMessage(
+            "Cuenta creada. Revisa tu correo para confirmar el acceso y después vuelve a RefFlow.",
+          );
       } else {
         const identifier = authEmail.trim();
         if (identifier.includes("@")) {
-          const { error } = await supabase.auth.signInWithPassword({ email: identifier, password: authPassword });
+          const { error } = await supabase.auth.signInWithPassword({
+            email: identifier,
+            password: authPassword,
+          });
           if (error) throw error;
         } else {
-          const { data: loginData, error: loginError } = await supabase.functions.invoke("login-with-username", { body: { username: normalizeUsername(identifier), password: authPassword } });
-          if (loginError || !loginData?.access_token || !loginData?.refresh_token) throw new Error("Usuario/correo o contraseña incorrectos.");
-          const { error: sessionError } = await supabase.auth.setSession({ access_token: loginData.access_token, refresh_token: loginData.refresh_token });
+          const { data: loginData, error: loginError } =
+            await supabase.functions.invoke("login-with-username", {
+              body: {
+                username: normalizeUsername(identifier),
+                password: authPassword,
+              },
+            });
+          if (
+            loginError ||
+            !loginData?.access_token ||
+            !loginData?.refresh_token
+          )
+            throw new Error("Usuario/correo o contraseña incorrectos.");
+          const { error: sessionError } = await supabase.auth.setSession({
+            access_token: loginData.access_token,
+            refresh_token: loginData.refresh_token,
+          });
           if (sessionError) throw sessionError;
         }
       }
     } catch (error) {
-      setAuthMessage(authMode === "login" ? "Usuario/correo o contraseña incorrectos." : error instanceof Error ? error.message : "No se pudo completar el acceso.");
+      setAuthMessage(
+        authMode === "login"
+          ? "Usuario/correo o contraseña incorrectos."
+          : error instanceof Error
+            ? error.message
+            : "No se pudo completar el acceso.",
+      );
     } finally {
       setAuthBusy(false);
     }
   };
 
-  const privacyNoticeOpen = authState === "authenticated" && data.privacyNoticeVersion === CURRENT_PRIVACY_NOTICE_VERSION && !data.privacyNoticeAcknowledgedAt;
-  const acknowledgePrivacyNotice = () => setData((current) => ({ ...current, privacyNoticeVersion: CURRENT_PRIVACY_NOTICE_VERSION, privacyNoticeAcknowledgedAt: new Date().toISOString() }));
-  if (!loaded || authState === "loading") return <main className="auth-screen"><div className="auth-card loading-card"><img className="auth-logo" src="/favicon.svg" alt="RefFlow" /><h1>Cargando RefFlow…</h1><p>Preparando tu espacio privado.</p></div></main>;
-  if (authState === "anonymous") return <main className="auth-screen"><section className="auth-card"><img className="auth-logo" src="/favicon.svg" alt="RefFlow" /><p className="auth-kicker">REFFLOW</p><h1>Tu arbitraje, organizado</h1><p className="auth-copy">Tus designaciones, ganancias y análisis estarán sincronizados en cualquier versión de RefFlow.</p><div className="auth-tabs"><button type="button" className={authMode === "login" ? "active" : ""} onClick={() => { setAuthMode("login"); setAuthMessage(""); }}>Iniciar sesión</button><button type="button" className={authMode === "signup" ? "active" : ""} onClick={() => { setAuthMode("signup"); setAuthMessage(""); }}>Crear cuenta</button></div><form className="auth-form" onSubmit={submitAuth}>{authMode === "signup" && <label>Nombre completo<Input value={authName} onChange={(event) => setAuthName(event.target.value)} autoComplete="name" required /></label>}<label>{authMode === "login" ? "Correo o nombre de usuario" : "Correo electrónico"}<Input type={authMode === "login" ? "text" : "email"} value={authEmail} onChange={(event) => setAuthEmail(event.target.value)} autoComplete="username" required /></label><label>Contraseña<Input type="password" value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} autoComplete={authMode === "signup" ? "new-password" : "current-password"} minLength={6} required /></label>{authMode === "signup" && <p className="auth-privacy-note"><ShieldCheck /> Usaremos tu nombre y correo para crear y mantener tu cuenta. La base jurídica es la prestación del servicio solicitado (art. 6.1.b del RGPD). Al entrar verás el aviso completo.</p>}{authMessage && <p className="auth-message">{authMessage}</p>}<button className="auth-button" type="submit" disabled={authBusy}>{authBusy ? "Comprobando…" : authMode === "signup" ? "Crear mi cuenta" : "Entrar"} <ChevronRight /></button></form><small>{authMode === "login" ? "Puedes entrar con tu nombre de usuario o con tu correo." : "La cuenta se crea con correo; después podrás elegir tu usuario en Ajustes."}</small></section></main>;
-  const greetingName = (data.settings.name || viewer?.fullName || viewer?.displayName || "Árbitro").trim().split(/\s+/)[0];
-  const initials = data.settings.name.split(" ").filter(Boolean).map((part) => part[0]).slice(0, 2).join("").toUpperCase() || "AP";
-  return <div className="app-shell"><Dialog open={privacyNoticeOpen}><DialogContent className="dialog-card privacy-dialog" showCloseButton={false} onEscapeKeyDown={(event) => event.preventDefault()} onPointerDownOutside={(event) => event.preventDefault()}><DialogHeader><span className="privacy-icon"><ShieldCheck /></span><DialogTitle>Tus datos están protegidos en RefFlow</DialogTitle><DialogDescription>Antes de empezar, te explicamos de forma clara cómo se utilizan.</DialogDescription></DialogHeader><div className="dialog-scroll"><div className="privacy-content"><section><strong>Qué datos guardamos</strong><p>Los datos de tu cuenta y la información que añades: designaciones, compañeros, tarifas, gastos, enlaces de vídeo y anotaciones. Los PDF se analizan en tu dispositivo y no se guardan.</p></section><section><strong>Finalidad y base jurídica</strong><p>Se usan para prestarte RefFlow, sincronizar tu cuenta y generar tus resúmenes. La base jurídica es la ejecución del servicio que solicitas, conforme al artículo 6.1.b del RGPD.</p></section><section><strong>Cómo se protegen</strong><p>El acceso requiere autenticación y la base de datos aplica reglas para que cada usuario solo pueda consultar y modificar su propio espacio. Los proveedores técnicos de alojamiento y base de datos solo intervienen para prestar el servicio.</p></section><section><strong>Conservación y derechos</strong><p>Los datos se conservan mientras mantengas tu cuenta o hasta que solicites su supresión. Puedes ejercer los derechos de acceso, rectificación, supresión, portabilidad, limitación y oposición, y reclamar ante la Agencia Española de Protección de Datos.</p></section><a href="https://www.aepd.es/derechos-y-deberes/conoce-tus-derechos" target="_blank" rel="noreferrer">Conocer tus derechos en la AEPD <ExternalLink /></a></div></div><DialogFooter><Button className="primary-btn privacy-confirm" onClick={acknowledgePrivacyNotice}><ShieldCheck /> Entendido, continuar</Button></DialogFooter></DialogContent></Dialog><aside className={`sidebar ${menuOpen ? "open" : ""}`}><button className="mobile-close" onClick={() => setMenuOpen(false)} aria-label="Cerrar menú"><X /></button><div className="brand"><img className="ball-logo" src="/favicon.svg" alt="" /><div><strong>RefFlow</strong><small>Temporada {shortSeasonName(data.settings.season)}</small></div></div><nav>{nav.map(({ id, label, icon: Icon }) => <button key={id} className={view === id ? "active" : ""} onClick={() => { setView(id); setMenuOpen(false); }}><Icon /><span>{label}</span>{view === id && <ChevronRight className="chev" />}</button>)}</nav><div className="sync-card"><span className={saveState === "error" ? "sync-dot error" : "sync-dot"} /><div><strong>{saveState === "guardando" ? "Guardando…" : saveState === "error" ? "Sin conexión" : "Todo guardado"}</strong><small>Sincronizado con Supabase</small></div></div><div className="profile"><span className="profile-avatar">{data.settings.profileImage ? <img src={data.settings.profileImage} alt="Foto de perfil" /> : initials}</span><div><strong>{data.settings.name}</strong><small>{data.settings.username ? `@${data.settings.username}` : viewer?.email}</small></div><button type="button" onClick={() => void supabase.auth.signOut()} aria-label="Cerrar sesión">Salir</button></div></aside>{menuOpen && <button className="scrim" onClick={() => setMenuOpen(false)} aria-label="Cerrar menú" />}
-    <main className="main-panel"><header className="topbar"><button className="menu-btn" onClick={() => setMenuOpen(true)} aria-label="Abrir menú"><Menu /></button><div><p>RefFlow</p><h1>{currentLabel}</h1></div><div className="top-actions"><div className="search"><Search /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar partido…" /></div>{view === "grabados" ? <VideoDialog matches={data.matches} onAdd={(game) => { setData((d) => ({ ...d, recordedGames: [...(d.recordedGames || []), game] })); setSelectedGameId(game.id); }} /> : (view === "regionales" || view === "escolares") ? <MatchDialog competition={activeCompetition} rates={data.rates} expensePolicy={data.expensePolicy || DEFAULT_EXPENSE_POLICY} onAdd={(m) => setData((d) => ({ ...d, matches: [m, ...d.matches] }))} /> : null}</div></header>{notice && <div className="notice"><ShieldCheck /><span>{notice}</span><button onClick={() => setNotice("")}><X /></button></div>}{legacyMigrationNeeded && <div className="notice legacy-notice"><ShieldCheck /><span>¿Ya usabas RefFlow? Conecta una vez tu acceso anterior para recuperar tus datos.</span><a href="/signin-with-chatgpt?return_to=%2F" target="_top">Recuperar datos</a><button onClick={() => setLegacyMigrationNeeded(false)}>Empezar sin datos anteriores</button></div>}{data.seasonStatus === "closed" && <div className="notice season-history-notice"><Trophy /><span>Estás viendo la temporada cerrada {shortSeasonName(data.settings.season)}.</span><button onClick={() => { setView("ajustes"); setSettingsTab("seasons"); }}>Cambiar temporada</button></div>}
-
-      {view === "inicio" && <section className="content dashboard"><div className="welcome"><div><p>{todayLabel}</p><h2>Hola, {greetingName} <span>👋</span></h2><small>Tienes {nextMatches.length} designaciones próximas.</small></div><button onClick={() => setView("importar")}><UploadCloud /> Importar designaciones</button></div><div className="kpi-grid"><article className="kpi primary"><div><span>ESTA SEMANA</span><strong>{money(weekTotal)}</strong><small>{matchCountLabel(weekMatches.length)}</small></div><div className="kpi-icon"><WalletCards /></div></article><article className="kpi"><div><span>ESTE MES</span><strong>{money(monthTotal)}</strong><small>{monthLabel}</small></div><div className="kpi-icon orange"><BarChart3 /></div></article><article className="kpi"><div><span>TEMPORADA</span><strong>{money(total)}</strong><small>{matchCountLabel(data.matches.length)}</small></div><div className="kpi-icon green"><Trophy /></div></article></div><div className="dashboard-grid"><section className="panel upcoming"><div className="panel-heading"><div><p>PRÓXIMAS DESIGNACIONES</p><h3>Tu fin de semana</h3></div><button onClick={() => setView("calendario")}>Ver calendario <ChevronRight /></button></div>{nextMatches.slice(0,3).map((m, i) => <article className={`match-row ${i === 0 ? "featured" : ""}`} key={m.id}><div className="date-box"><strong>{new Date(`${m.date}T12:00`).getDate()}</strong><span>{new Intl.DateTimeFormat("es-ES", { month: "short" }).format(new Date(`${m.date}T12:00`)).toUpperCase()}</span></div><div className="match-main"><span className="category">{m.category}</span><h4>{m.home} <em>vs</em> {m.away}</h4><p><Clock3 /> {m.time} <MapPin /> {m.venue}</p></div><div className="match-side"><strong>{money(net(m))}</strong><span>Neto estimado</span><button onClick={() => { setCalendarCursor(new Date(`${m.date}T12:00`)); setView("calendario"); }}><CalendarDays /> Ver en calendario</button></div></article>)}</section><aside className="side-stack"><section className="panel earnings"><div className="panel-heading"><div><p>GANANCIAS</p><h3>{monthLabel}</h3></div><CircleEuro /></div><div className="ring"><div><strong>{goalProgress}%</strong><span>del objetivo</span></div></div><div className="earn-row"><span>Cobrado</span><strong>{money(monthTotal)}</strong></div><div className="earn-row"><span>Objetivo</span><strong>{money(data.settings.earningsGoal)}</strong></div><button onClick={() => setView("ganancias")}>Ver desglose <ChevronRight /></button></section><section className="excel-card"><div className="excel-icon"><FileSpreadsheet /></div><div><h3>Excel de temporada</h3><p>Genera tu hoja actualizada con todos los meses.</p><button onClick={exportExcel}><Download /> Descargar .xlsx</button></div></section></aside></div></section>}
-
-      {view === "importar" && <section className="content narrow"><div className="section-intro"><p>IMPORTAR DESIGNACIONES</p><h2>Sube el PDF de la federación</h2><span>RefFlow detectará cada partido, los colegiados y los colores de las camisetas.</span></div><input ref={fileRef} hidden type="file" accept="application/pdf,.pdf" onChange={(e) => void importPdf(e.target.files?.[0])} /><button type="button" className={`drop-zone ${pdfState}`} onClick={() => fileRef.current?.click()} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); void importPdf(e.dataTransfer.files[0]); }}><span className="drop-icon"><FileUp /></span><strong>{pdfState === "reading" ? "Analizando partidos, colegiados y colores…" : pdfState === "ready" ? "Designaciones detectadas" : pdfState === "error" ? "No se pudo analizar el PDF" : "Arrastra aquí el PDF de designaciones"}</strong><small>{pdfState === "ready" ? `${pdfFileName} · revisa el resultado antes de importar` : pdfState === "error" ? pdfError : "o pulsa para seleccionarlo · máximo 20 MB"}</small><span className="fake-button">{pdfState === "ready" ? "Elegir otro PDF" : pdfState === "error" ? "Volver a intentarlo" : "Seleccionar PDF"}</span></button>{pdfState === "ready" && pdfImport && <div className="panel pdf-result"><div className="panel-heading"><div><p>REVISIÓN PREVIA</p><h3>{pdfImport.matches.length} {pdfImport.matches.length === 1 ? "designación detectada" : "designaciones detectadas"}</h3></div><span className="pdf-ready-icon"><Check /></span></div><div className="pdf-summary-grid"><div><strong>{pdfImport.matches.length}</strong><span>Partidos</span></div><div><strong>{pdfOfficials.length}</strong><span>Compañeros</span></div><div><strong>{pdfNewOfficials.length}</strong><span>Nuevos en Árbitros</span></div></div><div className="pdf-match-list">{pdfImport.matches.map((match) => { const savedRate = findSavedRate(data.rates, match.category, match.role); const recommendedShirt = shirtRecommendation(match.homeColor, match.awayColor, data.settings.shirtColors); return <article className="pdf-match-card" key={`${match.matchNumber}-${match.date}-${match.time}`}><div className="pdf-match-date"><strong>{new Date(`${match.date}T12:00:00`).getDate()}</strong><span>{new Intl.DateTimeFormat("es-ES", { month: "short" }).format(new Date(`${match.date}T12:00:00`)).toUpperCase()}</span></div><div className="pdf-match-main"><div className="pdf-match-top"><span>PARTIDO {match.matchNumber}</span><small>{match.time}</small></div><h4>{match.home} <em>vs</em> {match.away}</h4><p>{match.category} · {match.role}</p><small>{match.homeColor || "Color local no indicado"} · {match.awayColor || "Color visitante no indicado"}</small><div className={`shirt-recommendation ${recommendedShirt ? "available" : "unknown"}`}>{recommendedShirt && <i style={{ backgroundColor: data.settings.shirtColors[recommendedShirt] }} />}<span>{recommendedShirt ? <>Recomendación: <strong>{shirtLabel(recommendedShirt)}</strong></> : "No hay colores suficientes para recomendar camiseta"}</span></div></div><span className={`pdf-rate ${savedRate ? "found" : "pending"}`}>{savedRate ? `${money(savedRate.amount)} · tarifa encontrada` : "Tarifa pendiente"}</span></article>; })}</div><div className="pdf-contact-note"><Users /><div><strong>Agenda automática</strong><span>Al importar, se crearán los compañeros que todavía no existan con su nombre y teléfono. Los contactos ya guardados no se duplicarán.</span></div></div><div className="pdf-actions"><Button variant="outline" onClick={discardPdf}>Descartar</Button><Button variant="outline" onClick={() => addPdfDesignations("escolar")}>Añadir como escolares</Button><Button className="primary-btn" onClick={() => addPdfDesignations("regional")}>Añadir como regionales</Button></div></div>}<div className="info-strip"><ShieldCheck /><div><strong>Tu PDF permanece en este dispositivo</strong><span>Se analiza localmente y no se guarda ni se sube. Solo se sincronizan los partidos y contactos que confirmes.</span></div></div></section>}
-
-      {view === "calendario" && <section className="content calendar-page"><MatchCalendar matches={data.matches} cursor={calendarCursor} onChange={setCalendarCursor} /></section>}
-
-      {(view === "regionales" || view === "escolares") && <section className="content"><div className="page-heading"><div><p>{view === "escolares" ? "PARTIDOS ESCOLARES" : "PARTIDOS REGIONALES"}</p><h2>Temporada {data.settings.season}</h2></div><MatchDialog competition={activeCompetition} rates={data.rates} expensePolicy={data.expensePolicy || DEFAULT_EXPENSE_POLICY} onAdd={(m) => setData((d) => ({ ...d, matches: [m, ...d.matches] }))} /></div><div className="panel table-wrap"><table><thead><tr><th>Fecha</th><th>Partido</th><th>Categoría / función</th><th>Lugar</th><th>Neto</th><th>Acciones</th></tr></thead><tbody>{filtered.length === 0 ? <tr><td colSpan={6} className="empty-table">Aún no hay partidos {view === "escolares" ? "escolares" : "regionales"}.</td></tr> : filtered.sort((a,b) => b.date.localeCompare(a.date)).map((m) => { const recordedVideo = findRecordedGameForMatch(m, recordedGames); const selectedShirt = normalizedShirtChoice(m.shirtRecommendation); return <tr key={m.id}><td><strong>{dateLabel(m.date)}</strong><small>{m.time}</small></td><td><strong>{m.home}</strong><small>vs {m.away}{m.matchNumber ? ` · Nº ${m.matchNumber}` : ""}</small></td><td><span className="pill">{m.category}</span>{m.friendly && <span className="friendly-badge">Amistoso · 50 %</span>}<small>{m.role}</small></td><td><span>{m.venue}</span><small>{m.partners.join(", ") || "Sin compañeros"}</small></td><td><strong>{money(net(m))}</strong><small>{money(grossWithExpenses(m))} bruto</small></td><td><div className="row-actions"><EditMatchDialog match={m} rates={data.rates} expensePolicy={data.expensePolicy || DEFAULT_EXPENSE_POLICY} onSave={(updated) => updateMatch(m.id, updated)} /><button type="button" className={`shirt-action ${selectedShirt ? "selected" : ""}`} onClick={() => updateMatch(m.id, { shirtRecommendation: selectedShirt === "shirt1" ? "shirt2" : "shirt1" })} aria-label={selectedShirt ? `${shirtLabel(selectedShirt)} seleccionada. Pulsar para cambiar.` : "Seleccionar camiseta para el partido"} title={selectedShirt ? `${shirtLabel(selectedShirt)} · pulsar para cambiar` : "Sin camiseta asignada · pulsar para elegir Camiseta 1"}><Shirt style={{ color: selectedShirt ? data.settings.shirtColors[selectedShirt] : "#718095" }} /></button><button disabled={!recordedVideo} onClick={() => { if (!recordedVideo) return; setSelectedGameId(recordedVideo.id); setView("grabados"); }} className={recordedVideo ? "selected" : ""} aria-label={recordedVideo ? "Abrir vídeo del partido" : "No hay vídeo para este partido"} title={recordedVideo ? "Vídeo detectado · abrir análisis" : "No hay ningún vídeo correspondiente"}><Video /></button><button onClick={() => setData((d) => ({ ...d, matches: d.matches.filter((x) => x.id !== m.id) }))} aria-label="Eliminar partido" title="Eliminar partido"><X /></button></div></td></tr>; })}</tbody></table></div></section>}
-
-      {view === "grabados" && <section className="content video-analysis-page"><div className="page-heading"><div><p>ANÁLISIS DE VÍDEO</p><h2>Partidos grabados</h2></div><VideoDialog matches={data.matches} onAdd={(game) => { setData((d) => ({ ...d, recordedGames: [...(d.recordedGames || []), game] })); setSelectedGameId(game.id); }} /></div>
-        {recordedGames.length === 0 ? <div className="panel video-empty"><span><Video /></span><h3>Añade tu primer partido</h3><p>Pega un enlace de YouTube y podrás guardar acciones en el minuto y segundo exactos.</p><VideoDialog matches={data.matches} onAdd={(game) => { setData((d) => ({ ...d, recordedGames: [game] })); setSelectedGameId(game.id); }} /></div> : <div className="video-workspace">
-          <aside className="panel video-library"><div className="video-library-title"><div><p>VÍDEOS</p><strong>{recordedGames.length} {recordedGames.length === 1 ? "partido" : "partidos"}</strong></div><Video /></div>{recordedGames.map((game) => <button key={game.id} className={selectedGame?.id === game.id ? "active" : ""} onClick={() => setSelectedGameId(game.id)}><span className="video-list-icon"><Play /></span><span><strong>{game.title}</strong><small>{game.annotations.length} anotaciones</small></span><ChevronRight /></button>)}</aside>
-          {selectedGame && <div className="analyzer-main"><div ref={analysisStageRef} className={`analysis-stage ${analysisFullscreen ? "analysis-fullscreen" : ""}`}><section className="panel player-panel"><div className="player-heading"><div><p>ANALIZANDO</p><h3>{selectedGame.title}</h3></div><div className="player-heading-actions"><button className="fullscreen-toggle" onClick={toggleAnalysisFullscreen} aria-label={analysisFullscreen ? "Salir de pantalla completa" : "Analizar a pantalla completa"}>{analysisFullscreen ? <Minimize2 /> : <Maximize2 />}<span>{analysisFullscreen ? "Salir" : "Pantalla completa"}</span></button><a href={selectedGame.youtubeUrl} target="_blank" rel="noreferrer">Abrir en YouTube <ExternalLink /></a></div></div><div className="youtube-frame"><div ref={playerMountRef} /></div><div className="capture-bar"><div className="time-inputs"><TimerReset /><label>Min<input type="number" min="0" value={manualMinute} onChange={(e) => setManualMinute(Math.max(0, Number(e.target.value)))} /></label><span>:</span><label>Seg<input type="number" min="0" max="59" value={manualSecond} onChange={(e) => setManualSecond(Math.min(59, Math.max(0, Number(e.target.value))))} /></label></div><button onClick={() => { const seconds = currentSeconds(); setManualMinute(Math.floor(seconds / 60)); setManualSecond(seconds % 60); }}><Clock3 /> Capturar instante actual</button><strong>{timeLabel(manualMinute * 60 + manualSecond)}</strong></div><div className="note-box"><textarea value={annotationNote} onChange={(e) => setAnnotationNote(e.target.value)} placeholder="Nota opcional: qué ocurrió, posición, decisión…" /><button disabled={!annotationNote.trim()} onClick={() => addAnnotation("Nota libre", "Anotación")}>Guardar nota</button></div></section>
-            <section className="panel quick-tags"><div className="panel-heading"><div><p>ANOTACIONES RÁPIDAS</p><h3>Pulsa para guardar en {playerReady ? "el instante actual" : timeLabel(manualMinute * 60 + manualSecond)}</h3></div><div className="quick-tags-tools"><Tag /><button className="quick-tags-exit" onClick={toggleAnalysisFullscreen} aria-label="Salir de pantalla completa"><Minimize2 /></button></div></div><div className="tag-groups">{annotationGroups.map((group) => <div className={`tag-group ${group.name === "Dudas habituales" ? "common-doubts" : ""}`} key={group.name} style={{ borderLeftColor: group.color }}><div className="tag-group-title"><span style={{ background: group.color }} /><strong>{group.name}</strong></div><div className="tag-buttons">{group.items.map((item) => <button key={item} onClick={() => addAnnotation(group.name, item)}><span style={{ background: group.color }} />{item}</button>)}</div></div>)}</div></section></div>
-            <section className="panel annotations-panel"><div className="panel-heading"><div><p>LÍNEA DE TIEMPO</p><h3>{selectedGame.annotations.length} anotaciones</h3></div><div className="timeline-actions"><button className="report-button" onClick={exportVideoReport} disabled={selectedGame.annotations.length === 0}><FileText /> Finalizar y descargar PDF</button><Clock3 /></div></div>{selectedGame.annotations.length === 0 ? <div className="annotation-empty">Reproduce el vídeo y pulsa una etiqueta rápida para crear la primera anotación.</div> : <div className="annotation-list">{[...selectedGame.annotations].sort((a,b) => a.seconds - b.seconds).map((annotation) => <div className="annotation-row" key={annotation.id}><button className="timestamp" onClick={() => seekTo(annotation.seconds)} title="Reproducir desde 3 segundos antes" aria-label={`Reproducir ${annotation.label} desde 3 segundos antes`}><Play /> {timeLabel(annotation.seconds)}</button><span className="annotation-color" style={{ background: annotationGroups.find((group) => group.name === annotation.category)?.color || "#0b5cff" }} /><div><strong>{annotation.label}</strong><small>{annotation.category}{annotation.note ? ` · ${annotation.note}` : ""}</small></div><button className="annotation-delete" onClick={() => setData((d) => ({ ...d, recordedGames: (d.recordedGames || []).map((game) => game.id === selectedGame.id ? { ...game, annotations: game.annotations.filter((item) => item.id !== annotation.id) } : game) }))} aria-label="Eliminar anotación"><Trash2 /></button></div>)}</div>}</section>
-          </div>}
-        </div>}
-      </section>}
-
-      {view === "ganancias" && <section className="content"><div className="page-heading"><div><p>GANANCIAS</p><h2>Resumen económico</h2></div><Button className="primary-btn" onClick={exportExcel}><FileSpreadsheet /> Exportar Excel</Button></div>
-        <nav className="earnings-period-tabs" role="tablist" aria-label="Periodo de ganancias">
-          <button type="button" role="tab" aria-selected={earningsPeriod === "general"} className={earningsPeriod === "general" ? "active" : ""} onClick={() => setEarningsPeriod("general")}><strong>General</strong><small>{matchCountLabel(data.matches.length)}</small></button>
-          {earningsMonths.map((month) => <button type="button" role="tab" aria-selected={earningsPeriod === month.key} className={earningsPeriod === month.key ? "active" : ""} key={month.key} onClick={() => setEarningsPeriod(month.key)}><strong>{month.shortLabel}</strong><small>{month.matches.length || "Sin partidos"}</small></button>)}
+  const privacyNoticeOpen =
+    authState === "authenticated" &&
+    data.privacyNoticeVersion === CURRENT_PRIVACY_NOTICE_VERSION &&
+    !data.privacyNoticeAcknowledgedAt;
+  const acknowledgePrivacyNotice = () =>
+    setData((current) => ({
+      ...current,
+      privacyNoticeVersion: CURRENT_PRIVACY_NOTICE_VERSION,
+      privacyNoticeAcknowledgedAt: new Date().toISOString(),
+    }));
+  if (!loaded || authState === "loading")
+    return (
+      <main className="auth-screen">
+        <div className="auth-card loading-card">
+          <img className="auth-logo" src="/favicon.svg" alt="RefFlow" />
+          <h1>Cargando RefFlow…</h1>
+          <p>Preparando tu espacio privado.</p>
+        </div>
+      </main>
+    );
+  if (authState === "anonymous")
+    return (
+      <main className="auth-screen">
+        <section className="auth-card">
+          <img className="auth-logo" src="/favicon.svg" alt="RefFlow" />
+          <p className="auth-kicker">REFFLOW</p>
+          <h1>Tu arbitraje, organizado</h1>
+          <p className="auth-copy">
+            Tus designaciones, ganancias y análisis estarán sincronizados en
+            cualquier versión de RefFlow.
+          </p>
+          <div className="auth-tabs">
+            <button
+              type="button"
+              className={authMode === "login" ? "active" : ""}
+              onClick={() => {
+                setAuthMode("login");
+                setAuthMessage("");
+              }}
+            >
+              Iniciar sesión
+            </button>
+            <button
+              type="button"
+              className={authMode === "signup" ? "active" : ""}
+              onClick={() => {
+                setAuthMode("signup");
+                setAuthMessage("");
+              }}
+            >
+              Crear cuenta
+            </button>
+          </div>
+          <form className="auth-form" onSubmit={submitAuth}>
+            {authMode === "signup" && (
+              <label>
+                Nombre completo
+                <Input
+                  value={authName}
+                  onChange={(event) => setAuthName(event.target.value)}
+                  autoComplete="name"
+                  required
+                />
+              </label>
+            )}
+            <label>
+              {authMode === "login"
+                ? "Correo o nombre de usuario"
+                : "Correo electrónico"}
+              <Input
+                type={authMode === "login" ? "text" : "email"}
+                value={authEmail}
+                onChange={(event) => setAuthEmail(event.target.value)}
+                autoComplete="username"
+                required
+              />
+            </label>
+            <label>
+              Contraseña
+              <Input
+                type="password"
+                value={authPassword}
+                onChange={(event) => setAuthPassword(event.target.value)}
+                autoComplete={
+                  authMode === "signup" ? "new-password" : "current-password"
+                }
+                minLength={6}
+                required
+              />
+            </label>
+            {authMode === "signup" && (
+              <p className="auth-privacy-note">
+                <ShieldCheck /> Usaremos tu nombre y correo para crear y
+                mantener tu cuenta. La base jurídica es la prestación del
+                servicio solicitado (art. 6.1.b del RGPD). Al entrar verás el
+                aviso completo.
+              </p>
+            )}
+            {authMessage && <p className="auth-message">{authMessage}</p>}
+            <button className="auth-button" type="submit" disabled={authBusy}>
+              {authBusy
+                ? "Comprobando…"
+                : authMode === "signup"
+                  ? "Crear mi cuenta"
+                  : "Entrar"}{" "}
+              <ChevronRight />
+            </button>
+          </form>
+          <small>
+            {authMode === "login"
+              ? "Puedes entrar con tu nombre de usuario o con tu correo."
+              : "La cuenta se crea con correo; después podrás elegir tu usuario en Ajustes."}
+          </small>
+        </section>
+      </main>
+    );
+  const greetingName = (
+    data.settings.name ||
+    viewer?.fullName ||
+    viewer?.displayName ||
+    "Árbitro"
+  )
+    .trim()
+    .split(/\s+/)[0];
+  const initials =
+    data.settings.name
+      .split(" ")
+      .filter(Boolean)
+      .map((part) => part[0])
+      .slice(0, 2)
+      .join("")
+      .toUpperCase() || "AP";
+  return (
+    <div className="app-shell">
+      <Dialog open={privacyNoticeOpen}>
+        <DialogContent
+          className="dialog-card privacy-dialog"
+          showCloseButton={false}
+          onEscapeKeyDown={(event) => event.preventDefault()}
+          onPointerDownOutside={(event) => event.preventDefault()}
+        >
+          <DialogHeader>
+            <span className="privacy-icon">
+              <ShieldCheck />
+            </span>
+            <DialogTitle>Tus datos están protegidos en RefFlow</DialogTitle>
+            <DialogDescription>
+              Antes de empezar, te explicamos de forma clara cómo se utilizan.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="dialog-scroll">
+            <div className="privacy-content">
+              <section>
+                <strong>Qué datos guardamos</strong>
+                <p>
+                  Los datos de tu cuenta y la información que añades:
+                  designaciones, compañeros, tarifas, gastos, enlaces de vídeo y
+                  anotaciones. Los PDF se analizan en tu dispositivo y no se
+                  guardan.
+                </p>
+              </section>
+              <section>
+                <strong>Finalidad y base jurídica</strong>
+                <p>
+                  Se usan para prestarte RefFlow, sincronizar tu cuenta y
+                  generar tus resúmenes. La base jurídica es la ejecución del
+                  servicio que solicitas, conforme al artículo 6.1.b del RGPD.
+                </p>
+              </section>
+              <section>
+                <strong>Cómo se protegen</strong>
+                <p>
+                  El acceso requiere autenticación y la base de datos aplica
+                  reglas para que cada usuario solo pueda consultar y modificar
+                  su propio espacio. Los proveedores técnicos de alojamiento y
+                  base de datos solo intervienen para prestar el servicio.
+                </p>
+              </section>
+              <section>
+                <strong>Conservación y derechos</strong>
+                <p>
+                  Los datos se conservan mientras mantengas tu cuenta o hasta
+                  que solicites su supresión. Puedes ejercer los derechos de
+                  acceso, rectificación, supresión, portabilidad, limitación y
+                  oposición, y reclamar ante la Agencia Española de Protección
+                  de Datos.
+                </p>
+              </section>
+              <a
+                href="https://www.aepd.es/derechos-y-deberes/conoce-tus-derechos"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Conocer tus derechos en la AEPD <ExternalLink />
+              </a>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              className="primary-btn privacy-confirm"
+              onClick={acknowledgePrivacyNotice}
+            >
+              <ShieldCheck /> Entendido, continuar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <aside className={`sidebar ${menuOpen ? "open" : ""}`}>
+        <button
+          className="mobile-close"
+          onClick={() => setMenuOpen(false)}
+          aria-label="Cerrar menú"
+        >
+          <X />
+        </button>
+        <div className="brand">
+          <img className="ball-logo" src="/favicon.svg" alt="" />
+          <div>
+            <strong>RefFlow</strong>
+            <small>Temporada {shortSeasonName(data.settings.season)}</small>
+          </div>
+        </div>
+        <nav>
+          {nav.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              className={view === id ? "active" : ""}
+              onClick={() => {
+                setView(id);
+                setMenuOpen(false);
+              }}
+            >
+              <Icon />
+              <span>{label}</span>
+              {view === id && <ChevronRight className="chev" />}
+            </button>
+          ))}
         </nav>
-        {earningsPeriod === "general" ? <>
-          <div className="kpi-grid"><article className="kpi primary"><div><span>ESTA SEMANA</span><strong>{money(weekTotal)}</strong><small>{matchCountLabel(weekMatches.length)} · Neto estimado</small></div><WalletCards /></article><article className="kpi"><div><span>ESTE MES</span><strong>{money(monthTotal)}</strong><small>{monthLabel}</small></div><BarChart3 /></article><article className="kpi"><div><span>TEMPORADA</span><strong>{money(total)}</strong><small>{data.matches.length} designaciones</small></div><Trophy /></article></div>
-          <div className="panel finance-list"><div className="panel-heading"><div><p>DESGLOSE GENERAL</p><h3>Ingresos por partido</h3></div></div>{data.matches.length === 0 ? <div className="finance-empty">Aún no hay ingresos registrados esta temporada.</div> : data.matches.map((m) => <div className="finance-row" key={m.id}><div><strong>{m.home} – {m.away}</strong><small>{dateLabel(m.date)} · {m.category}</small></div><span>{financialBreakdown(m)}</span><strong>{money(net(m))}</strong></div>)}</div>
-          <div className="earnings-split">{[
-            { key: "escolares", label: "Escolares", matches: schoolMatches, total: schoolTotal },
-            { key: "regionales", label: "Regionales", matches: regionalMatches, total: regionalTotal },
-          ].map((group) => <div className="panel finance-list" key={group.key}><div className="panel-heading"><div><p>GANANCIAS</p><h3>{group.label}</h3></div><div className="finance-heading-total"><strong>{money(group.total)}</strong><button onClick={() => setView(group.key as View)}>Ver partidos <ChevronRight /></button></div></div>{group.matches.length === 0 ? <div className="finance-empty">Aún no hay ingresos de partidos {group.label.toLowerCase()}.</div> : group.matches.map((m) => <div className="finance-row" key={m.id}><div><strong>{m.home} – {m.away}</strong><small>{dateLabel(m.date)} · {m.category}</small></div><span>{financialBreakdown(m)}</span><strong>{money(net(m))}</strong></div>)}</div>)}</div>
-        </> : selectedEarningsMonth && <>
-          <div className="month-heading"><div><p>RESUMEN MENSUAL</p><h3>{selectedEarningsMonth.label}</h3></div><span>{matchCountLabel(selectedMonthMatches.length)}</span></div>
-          <div className="kpi-grid monthly-kpis"><article className="kpi primary"><div><span>NETO ESTIMADO</span><strong>{money(selectedEarningsMonth.total)}</strong><small>{matchCountLabel(selectedMonthMatches.length)}</small></div><WalletCards /></article><article className="kpi"><div><span>BRUTO + DIETAS</span><strong>{money(selectedEarningsMonth.gross)}</strong><small>Antes de retención</small></div><CircleEuro /></article><article className="kpi"><div><span>MEDIA POR PARTIDO</span><strong>{money(selectedMonthMatches.length ? selectedEarningsMonth.total / selectedMonthMatches.length : 0)}</strong><small>Neto estimado</small></div><BarChart3 /></article></div>
-          <div className="panel finance-list"><div className="panel-heading"><div><p>DESGLOSE DEL MES</p><h3>{selectedEarningsMonth.label}</h3></div><div className="finance-heading-total"><strong>{money(selectedEarningsMonth.total)}</strong><small>Neto total</small></div></div>{selectedMonthMatches.length === 0 ? <div className="finance-empty">No hay partidos registrados en {selectedEarningsMonth.label.toLowerCase()}.</div> : selectedMonthMatches.map((m) => <div className="finance-row" key={m.id}><div><strong>{m.home} – {m.away}</strong><small>{dateLabel(m.date)} · {m.category} · {m.role}</small></div><span>{financialBreakdown(m)}</span><strong>{money(net(m))}</strong></div>)}</div>
-          <div className="earnings-split">{[
-            { key: "escolares", label: "Escolares", matches: selectedMonthSchoolMatches },
-            { key: "regionales", label: "Regionales", matches: selectedMonthRegionalMatches },
-          ].map((group) => { const groupTotal = group.matches.reduce((sum, match) => sum + net(match), 0); return <div className="panel finance-list" key={group.key}><div className="panel-heading"><div><p>{selectedEarningsMonth.shortLabel.toUpperCase()}</p><h3>{group.label}</h3></div><div className="finance-heading-total"><strong>{money(groupTotal)}</strong><button onClick={() => setView(group.key as View)}>Ver partidos <ChevronRight /></button></div></div>{group.matches.length === 0 ? <div className="finance-empty">Sin partidos {group.label.toLowerCase()} este mes.</div> : group.matches.map((m) => <div className="finance-row" key={m.id}><div><strong>{m.home} – {m.away}</strong><small>{dateLabel(m.date)} · {m.category}</small></div><span>{financialBreakdown(m)}</span><strong>{money(net(m))}</strong></div>)}</div>; })}</div>
-        </>}
-      </section>}
-
-      {view === "arbitros" && <section className="content"><div className="page-heading"><div><p>AGENDA</p><h2>Compañeros</h2></div><Button className="primary-btn" onClick={() => { const name = prompt("Nombre del árbitro"); if (name) setData((d) => ({ ...d, contacts: [...d.contacts, { id: makeId(), name, phone: "", role: "Árbitro" }] })); }}><Plus /> Añadir árbitro</Button></div>{data.contacts.length === 0 ? <div className="panel contacts-empty"><Users /><h3>Aún no hay compañeros</h3><p>Los árbitros y oficiales aparecerán aquí automáticamente cuando importes una designación.</p></div> : <div className="contact-grid">{data.contacts.map((c) => <article className="contact-card" key={c.id}><span className="avatar">{c.name.split(" ").map((x) => x[0]).slice(0,2).join("")}</span><div><h3>{c.name}</h3><p>{c.role}{c.city ? ` · ${c.city}` : ""}</p><span>{c.phone || "Teléfono pendiente"}</span></div><div className="contact-actions"><button onClick={() => { const phone = prompt("Número de teléfono", c.phone); if (phone !== null) setData((d) => ({ ...d, contacts: d.contacts.map((x) => x.id === c.id ? { ...x, phone } : x) })); }} aria-label={`Editar teléfono de ${c.name}`}><Pencil /></button><button disabled={!c.phone} onClick={() => window.open(`https://wa.me/34${c.phone.replace(/\D/g, "")}`, "_blank", "noopener,noreferrer")}><MessageCircle /> WhatsApp</button></div></article>)}</div>}</section>}
-
-      {view === "tarifas" && <section className="content"><div className="page-heading"><div><p>TARIFAS</p><h2>Temporada {data.settings.season}</h2></div><Button className="primary-btn" onClick={() => setData((d) => ({ ...d, rates: [...d.rates, { id: makeId(), category: "Nueva categoría", role: "Árbitro", amount: 0, retention: RETENTION_RATE }] }))}><Plus /> Nueva tarifa</Button></div><div className="panel table-wrap"><table><thead><tr><th>Competición</th><th>Función</th><th>Tarifa</th><th>Retención</th><th>Neto</th><th></th></tr></thead><tbody>{data.rates.map((r) => <tr key={r.id}><td><Input value={r.category} readOnly={Boolean(r.locked)} onChange={(e) => setData((d) => ({ ...d, rates: d.rates.map((x) => x.id === r.id ? { ...x, category: e.target.value } : x) }))} /></td><td><Input value={r.role} readOnly={Boolean(r.locked)} onChange={(e) => setData((d) => ({ ...d, rates: d.rates.map((x) => x.id === r.id ? { ...x, role: e.target.value } : x) }))} /></td><td><Input type="number" step="0.01" value={r.amount} readOnly={Boolean(r.locked)} onChange={(e) => setData((d) => ({ ...d, rates: d.rates.map((x) => x.id === r.id ? { ...x, amount: Number(e.target.value) } : x) }))} /></td><td><Input type="number" value={RETENTION_RATE} readOnly aria-label="Retención fija del 2 por ciento" /></td><td><strong>{money(r.amount * (1 - RETENTION_RATE / 100))}</strong></td><td>{r.locked ? <small title={`Tarifa oficial fija de la temporada ${data.rateSheet?.season || "2026/27"}`}>Oficial {shortSeasonName(data.rateSheet?.season || "2026/27")}</small> : <button className="icon-delete" aria-label="Eliminar tarifa" onClick={() => setData((d) => ({ ...d, rates: d.rates.filter((x) => x.id !== r.id) }))}><X /></button>}</td></tr>)}</tbody></table></div></section>}
-
-      {view === "ajustes" && <section className="content narrow"><div className="section-intro"><p>AJUSTES</p><h2>Personaliza RefFlow</h2><span>Configura tu perfil, las temporadas, las camisetas y las tarifas oficiales.</span></div>
-        <nav className="settings-tabs" role="tablist" aria-label="Secciones de ajustes"><button type="button" role="tab" aria-selected={settingsTab === "profile"} className={settingsTab === "profile" ? "active" : ""} onClick={() => setSettingsTab("profile")}><Settings /> Perfil y cuenta</button><button type="button" role="tab" aria-selected={settingsTab === "seasons"} className={settingsTab === "seasons" ? "active" : ""} onClick={() => setSettingsTab("seasons")}><Trophy /> Temporadas y camisetas</button><button type="button" role="tab" aria-selected={settingsTab === "notifications"} className={settingsTab === "notifications" ? "active" : ""} onClick={() => setSettingsTab("notifications")}><Bell /> Avisos</button><button type="button" role="tab" aria-selected={settingsTab === "rates"} className={settingsTab === "rates" ? "active" : ""} onClick={() => setSettingsTab("rates")}><FileText /> Tarifas PDF</button></nav>
-        {settingsTab === "profile" ? <div className="panel settings-form">
-          <div className="settings-profile wide"><span className="settings-avatar">{data.settings.profileImage ? <img src={data.settings.profileImage} alt="Foto de perfil" /> : initials}</span><div><strong>Foto de perfil</strong><span>Se recorta automáticamente y solo se guarda en tu cuenta.</span><div className="settings-photo-actions"><input ref={profileFileRef} hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => void changeProfileImage(event.target.files?.[0])} /><Button type="button" variant="outline" disabled={profileBusy} onClick={() => profileFileRef.current?.click()}><Camera /> {data.settings.profileImage ? "Cambiar foto" : "Añadir foto"}</Button>{data.settings.profileImage && <button type="button" className="text-action" onClick={() => { setData((current) => ({ ...current, settings: { ...current.settings, profileImage: "" } })); setProfileMessage("Foto eliminada."); }}>Eliminar</button>}</div></div></div>
-          <label>Nombre tal como aparece en las designaciones<Input value={data.settings.name} onChange={(e) => setData((d) => ({ ...d, settings: { ...d.settings, name: e.target.value } }))} /></label>
-          <label>Objetivo mensual de ganancias<Input type="number" min="0" step="10" value={data.settings.earningsGoal} onChange={(e) => setData((d) => ({ ...d, settings: { ...d.settings, earningsGoal: Math.max(0, Number(e.target.value) || 0) } }))} /><small>Se usa en el porcentaje de la pantalla de inicio.</small></label>
-          <label>Nombre de usuario<div className="username-control"><Input value={usernameDraft} onChange={(e) => { setUsernameDraft(e.target.value); setProfileMessage(""); }} placeholder="mateo.garcia" autoComplete="username" /><Button type="button" disabled={profileBusy} onClick={() => void saveUsername()}>{profileBusy ? "Guardando…" : "Guardar usuario"}</Button></div><small>De 3 a 24 caracteres, sin espacios. Podrás iniciar sesión con este nombre o con tu correo.</small></label>
-          {profileMessage && <p className="settings-message wide">{profileMessage}</p>}
-          <div className="setting-row"><div><strong>Instalar RefFlow para Android</strong><span>Descarga la aplicación oficial. Solo es compatible con dispositivos Android 7.0 o posteriores.</span></div><a className="text-link apk-download-link" href="/downloads/RefFlow-v1.0.apk" download><Download /> Descargar APK</a></div>
-        </div> : settingsTab === "seasons" ? <div className="season-settings">
-          <div className="panel season-overview"><div><span className="season-overview-icon"><Trophy /></span><div><p>TEMPORADA SELECCIONADA</p><h3>{shortSeasonName(data.settings.season)}</h3><span>{matchCountLabel(data.matches.length)} · {money(total)} netos</span></div></div><Button type="button" className="close-season-button" disabled={data.seasonStatus === "closed"} onClick={() => setCloseSeasonOpen(true)}>{data.seasonStatus === "closed" ? "Temporada cerrada" : "Cerrar temporada"}</Button></div>
-          <div className="season-list" aria-label="Temporadas guardadas">{seasonOptions.map((season) => { const seasonTotal = season.matches.reduce((sum, match) => sum + net(match), 0); return <button type="button" className={`season-card ${season.selected ? "selected" : ""}`} aria-pressed={season.selected} key={season.id} onClick={() => selectSeason(season.id)}><span className="season-card-icon"><CalendarDays /></span><span className="season-card-main"><span><strong>{shortSeasonName(season.name)}</strong><em className={season.status}>{season.status === "open" ? "En curso" : "Cerrada"}</em></span><small>{matchCountLabel(season.matches.length)} · {season.recordedGames.length} {season.recordedGames.length === 1 ? "vídeo" : "vídeos"}</small></span><span className="season-card-total"><strong>{money(seasonTotal)}</strong><small>{season.selected ? "Viendo ahora" : "Ver temporada"}</small></span></button>; })}</div>
-          <div className="panel shirt-settings"><div className="shirt-settings-heading"><div><p>CAMISETAS DE ARBITRAJE</p><h3>Colores para las recomendaciones</h3><span>Al pulsar cada círculo se abre la ruleta de color del dispositivo.</span></div><button type="button" onClick={() => setData((current) => ({ ...current, settings: { ...current.settings, shirtColors: DEFAULT_SHIRT_COLORS } }))}>Restablecer</button></div><div className="shirt-color-grid"><label><input type="color" value={data.settings.shirtColors.shirt1} onChange={(event) => setData((current) => ({ ...current, settings: { ...current.settings, shirtColors: { ...current.settings.shirtColors, shirt1: event.target.value } } }))} aria-label="Color de la camiseta 1" /><span><strong>Camiseta 1</strong><small>{data.settings.shirtColors.shirt1.toUpperCase()}</small></span></label><label><input type="color" value={data.settings.shirtColors.shirt2} onChange={(event) => setData((current) => ({ ...current, settings: { ...current.settings, shirtColors: { ...current.settings.shirtColors, shirt2: event.target.value } } }))} aria-label="Color de la camiseta 2" /><span><strong>Camiseta 2</strong><small>{data.settings.shirtColors.shirt2.toUpperCase()}</small></span></label></div><div className="shirt-settings-note"><ShieldCheck /><span>RefFlow compara directamente estos dos colores con las camisetas del equipo local y visitante indicadas en el PDF.</span></div></div>
-          <div className="panel season-help"><ShieldCheck /><div><strong>Tu historial queda guardado</strong><span>Al cerrar una temporada se conservan sus partidos, ganancias y vídeos. La siguiente empieza sin partidos, pero mantiene tu perfil, compañeros y tarifas.</span></div></div>
-        </div> : settingsTab === "notifications" ? <div className="notification-settings">
-          <div className="panel notification-hero"><span className={`notification-icon ${notificationDeviceReady ? "enabled" : ""}`}><Bell /></span><div><p>AVISOS DE PARTIDOS</p><h3>{notificationDeviceReady ? "Avisos activos en este dispositivo" : (data.notificationSettings || DEFAULT_NOTIFICATION_SETTINGS).enabled ? "Actívalos también en este dispositivo" : "No te olvides de una designación"}</h3><span>RefFlow puede avisarte aunque la aplicación esté cerrada. Puedes activar el ordenador y el móvil por separado.</span></div><Button type="button" className={notificationDeviceReady ? "notification-disable" : "primary-btn"} disabled={notificationBusy} onClick={() => void (notificationDeviceReady ? disableNotifications() : enableNotifications())}>{notificationBusy ? "Comprobando…" : notificationDeviceReady ? "Desactivar en este dispositivo" : "Activar en este dispositivo"}</Button></div>
-          <div className="panel notification-options"><label><span><strong>Cuándo quieres recibir el aviso</strong><small>Se aplica a todos los próximos partidos.</small></span><NativeSelect value={String((data.notificationSettings || DEFAULT_NOTIFICATION_SETTINGS).reminderMinutes)} disabled={!(data.notificationSettings || DEFAULT_NOTIFICATION_SETTINGS).enabled} onChange={(event) => setData((current) => ({ ...current, notificationSettings: { enabled: current.notificationSettings?.enabled || false, reminderMinutes: Number(event.target.value) } }))}><NativeSelectOption value="60">1 hora antes</NativeSelectOption><NativeSelectOption value="180">3 horas antes</NativeSelectOption><NativeSelectOption value="720">12 horas antes</NativeSelectOption><NativeSelectOption value="1440">1 día antes</NativeSelectOption><NativeSelectOption value="2880">2 días antes</NativeSelectOption></NativeSelect></label><div className="notification-note"><ShieldCheck /><span>Solo se envían recordatorios de tus partidos. Puedes desactivarlos aquí o desde los ajustes del dispositivo.</span></div>{notificationMessage && <p className="settings-message">{notificationMessage}</p>}</div>
-          <div className="panel season-help"><CalendarDays /><div><strong>Calendario y avisos siempre sincronizados</strong><span>Al importar, editar o borrar una designación, RefFlow actualiza automáticamente el calendario y el próximo aviso.</span></div></div>
-        </div> : <div className="rate-analyzer">
-          <div className="panel rate-source-card"><span className="season-overview-icon"><CircleEuro /></span><div><p>TARIFAS OFICIALES ACTIVAS</p><h3>{shortSeasonName(data.rateSheet?.season || "2026/27")}</h3><span>{data.rates.filter((rate) => rate.locked).length} importes · retención fija del 2 %{data.rateSheet?.source === "pdf" ? ` · ${data.rateSheet.fileName}` : " · incluidas en RefFlow"}</span></div></div>
-          <input ref={rateFileRef} hidden type="file" accept="application/pdf,.pdf" onClick={(event) => { event.currentTarget.value = ""; }} onChange={(event) => void analyzeRatePdf(event.target.files?.[0])} />
-          <button type="button" className={`drop-zone rate-drop-zone ${ratePdfState}`} disabled={ratePdfState === "reading"} onClick={() => rateFileRef.current?.click()}>
-            <span className="drop-icon">{ratePdfState === "ready" ? <Check /> : <UploadCloud />}</span>
-            <strong>{ratePdfState === "reading" ? "Analizando tarifas…" : ratePdfState === "error" ? "No se pudo analizar" : "Sube el PDF oficial de tarifas"}</strong>
-            <small>{ratePdfFileName || "El análisis se hace en tu dispositivo · máximo 20 MB"}</small>
-            <span className="fake-button">{ratePdfState === "reading" ? "Leyendo PDF" : "Seleccionar PDF"}</span>
+        <div className="sync-card">
+          <span
+            className={saveState === "error" ? "sync-dot error" : "sync-dot"}
+          />
+          <div>
+            <strong>
+              {saveState === "guardando"
+                ? "Guardando…"
+                : saveState === "error"
+                  ? "Sin conexión"
+                  : "Todo guardado"}
+            </strong>
+            <small>Sincronizado con Supabase</small>
+          </div>
+        </div>
+        <div className="profile">
+          <span className="profile-avatar">
+            {data.settings.profileImage ? (
+              <img src={data.settings.profileImage} alt="Foto de perfil" />
+            ) : (
+              initials
+            )}
+          </span>
+          <div>
+            <strong>{data.settings.name}</strong>
+            <small>
+              {data.settings.username
+                ? `@${data.settings.username}`
+                : viewer?.email}
+            </small>
+          </div>
+          <button
+            type="button"
+            onClick={() => void supabase.auth.signOut()}
+            aria-label="Cerrar sesión"
+          >
+            Salir
           </button>
-          {ratePdfError && <p className="rate-analyzer-error">{ratePdfError}</p>}
-          {ratePdfPreview && <div className="panel rate-preview">
-            <div className="panel-heading"><div className="pdf-ready-icon"><Check /></div><div><h3>Vista previa · {shortSeasonName(ratePdfPreview.season)}</h3><p>{ratePdfFileName}</p></div></div>
-            <div className="pdf-summary-grid"><div><strong>{ratePdfPreview.rows.length}</strong><span>Categorías admitidas</span></div><div><strong>{ratePdfPreview.rates.length}</strong><span>Tarifas con importe</span></div><div><strong>2 %</strong><span>Retención aplicada</span></div></div>
-            <div className="rate-exclusions"><ShieldCheck /><div><strong>Exclusiones automáticas</strong><span>Se ignoran toda la sección FEB, Liga Provincial Guadalajara y cualquier trofeo.{ratePdfPreview.excludedCategories.length ? ` Detectadas en este PDF: ${ratePdfPreview.excludedCategories.join(", ")}.` : ""}</span></div></div>
-            {(ratePdfPreview.diets.length > 0 || ratePdfPreview.mileage.length > 0) && <div className="expense-policy-preview"><div><strong>Dietas detectadas</strong>{ratePdfPreview.diets.map((option) => <span key={option.id}>{option.label}: {money(option.amount)}</span>)}</div><div><strong>Kilometraje detectado</strong>{ratePdfPreview.mileage.map((option) => <span key={option.id}>{option.label}: {money(option.amount)}/km</span>)}</div></div>}
-            <div className="rate-preview-table"><table><thead><tr><th>Categoría</th><th>Principal</th><th>Auxiliar</th><th>Anotador</th><th>Crono</th><th>Oper. RLL</th><th>Ayudante</th></tr></thead><tbody>{ratePdfPreview.rows.map((row) => <tr key={row.category}><td><strong>{row.category}</strong></td>{row.amounts.map((amount, index) => <td key={`${row.category}-${index}`}>{amount === null ? "—" : money(amount)}</td>)}</tr>)}</tbody></table></div>
-            <div className="pdf-actions"><Button type="button" variant="outline" onClick={discardRatePdf}>Cancelar</Button><Button type="button" className="primary-btn" onClick={applyRatePdf}><Check /> Actualizar tarifas oficiales</Button></div>
-          </div>}
-          <div className="panel season-help"><ShieldCheck /><div><strong>Las tarifas personalizadas no se borran</strong><span>Al confirmar solo se sustituyen las tarifas oficiales. Si el formato del PDF cambia y no se puede leer con seguridad, RefFlow no aplica ningún cambio.</span></div></div>
-        </div>}
-        <Dialog open={closeSeasonOpen} onOpenChange={setCloseSeasonOpen}><DialogContent className="dialog-card season-close-dialog"><DialogHeader><DialogTitle>Cerrar temporada {shortSeasonName(data.settings.season)}</DialogTitle><DialogDescription>Se archivarán todos sus partidos, ganancias y vídeos. Después se abrirá la temporada {shortSeasonName(nextSeasonName)} sin partidos ni ingresos; tus tarifas, compañeros y perfil se conservarán.</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" onClick={() => setCloseSeasonOpen(false)}>Cancelar</Button><Button className="close-season-confirm" onClick={closeCurrentSeason}>Cerrar y crear {shortSeasonName(nextSeasonName)}</Button></DialogFooter></DialogContent></Dialog>
-      </section>}
-    </main><nav className="bottom-nav">{nav.filter(({ id }) => ["inicio", "calendario", "regionales", "escolares", "ganancias"].includes(id)).map(({ id, label, icon: Icon }) => <button key={id} className={view === id ? "active" : ""} onClick={() => setView(id)}><Icon /><span>{label}</span></button>)}</nav>
-  </div>;
+        </div>
+      </aside>
+      {menuOpen && (
+        <button
+          className="scrim"
+          onClick={() => setMenuOpen(false)}
+          aria-label="Cerrar menú"
+        />
+      )}
+      <main className="main-panel">
+        <header className="topbar">
+          <button
+            className="menu-btn"
+            onClick={() => setMenuOpen(true)}
+            aria-label="Abrir menú"
+          >
+            <Menu />
+          </button>
+          <div>
+            <p>RefFlow</p>
+            <h1>{currentLabel}</h1>
+          </div>
+          <div className="top-actions">
+            <div className="search">
+              <Search />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar partido…"
+              />
+            </div>
+            {view === "grabados" ? (
+              <VideoDialog
+                matches={data.matches}
+                onAdd={(game) => {
+                  setData((d) => ({
+                    ...d,
+                    recordedGames: [...(d.recordedGames || []), game],
+                  }));
+                  setSelectedGameId(game.id);
+                }}
+              />
+            ) : view === "regionales" || view === "escolares" ? (
+              <MatchDialog
+                competition={activeCompetition}
+                rates={data.rates}
+                expensePolicy={data.expensePolicy || DEFAULT_EXPENSE_POLICY}
+                onAdd={(m) =>
+                  setData((d) => ({ ...d, matches: [m, ...d.matches] }))
+                }
+              />
+            ) : null}
+          </div>
+        </header>
+        {notice && (
+          <div className="notice">
+            <ShieldCheck />
+            <span>{notice}</span>
+            <button onClick={() => setNotice("")}>
+              <X />
+            </button>
+          </div>
+        )}
+        {legacyMigrationNeeded && (
+          <div className="notice legacy-notice">
+            <ShieldCheck />
+            <span>
+              ¿Ya usabas RefFlow? Conecta una vez tu acceso anterior para
+              recuperar tus datos.
+            </span>
+            <a href="/signin-with-chatgpt?return_to=%2F" target="_top">
+              Recuperar datos
+            </a>
+            <button onClick={() => setLegacyMigrationNeeded(false)}>
+              Empezar sin datos anteriores
+            </button>
+          </div>
+        )}
+        {data.seasonStatus === "closed" && (
+          <div className="notice season-history-notice">
+            <Trophy />
+            <span>
+              Estás viendo la temporada cerrada{" "}
+              {shortSeasonName(data.settings.season)}.
+            </span>
+            <button
+              onClick={() => {
+                setView("ajustes");
+                setSettingsTab("seasons");
+              }}
+            >
+              Cambiar temporada
+            </button>
+          </div>
+        )}
+
+        {view === "inicio" && (
+          <section className="content dashboard">
+            <div className="welcome">
+              <div>
+                <p>{todayLabel}</p>
+                <h2>
+                  Hola, {greetingName} <span>👋</span>
+                </h2>
+                <small>
+                  Tienes {nextMatches.length} designaciones próximas.
+                </small>
+              </div>
+              <button onClick={() => setView("importar")}>
+                <UploadCloud /> Importar designaciones
+              </button>
+            </div>
+            <div className="kpi-grid">
+              <article className="kpi primary">
+                <div>
+                  <span>ESTA SEMANA</span>
+                  <strong>{money(weekTotal)}</strong>
+                  <small>{matchCountLabel(weekMatches.length)}</small>
+                </div>
+                <div className="kpi-icon">
+                  <WalletCards />
+                </div>
+              </article>
+              <article className="kpi">
+                <div>
+                  <span>ESTE MES</span>
+                  <strong>{money(monthTotal)}</strong>
+                  <small>{monthLabel}</small>
+                </div>
+                <div className="kpi-icon orange">
+                  <BarChart3 />
+                </div>
+              </article>
+              <article className="kpi">
+                <div>
+                  <span>TEMPORADA</span>
+                  <strong>{money(total)}</strong>
+                  <small>{matchCountLabel(data.matches.length)}</small>
+                </div>
+                <div className="kpi-icon green">
+                  <Trophy />
+                </div>
+              </article>
+            </div>
+            <div className="dashboard-grid">
+              <section className="panel upcoming">
+                <div className="panel-heading">
+                  <div>
+                    <p>PRÓXIMAS DESIGNACIONES</p>
+                    <h3>Tu fin de semana</h3>
+                  </div>
+                  <button onClick={() => setView("calendario")}>
+                    Ver calendario <ChevronRight />
+                  </button>
+                </div>
+                {nextMatches.slice(0, 3).map((m, i) => (
+                  <article
+                    className={`match-row ${i === 0 ? "featured" : ""}`}
+                    key={m.id}
+                  >
+                    <div className="date-box">
+                      <strong>{new Date(`${m.date}T12:00`).getDate()}</strong>
+                      <span>
+                        {new Intl.DateTimeFormat("es-ES", { month: "short" })
+                          .format(new Date(`${m.date}T12:00`))
+                          .toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="match-main">
+                      <span className="category">{m.category}</span>
+                      <h4>
+                        {m.home} <em>vs</em> {m.away}
+                      </h4>
+                      <p>
+                        <Clock3 /> {m.time} <MapPin /> {m.venue}
+                      </p>
+                    </div>
+                    <div className="match-side">
+                      <strong>{money(net(m))}</strong>
+                      <span>Neto estimado</span>
+                      <button
+                        onClick={() => {
+                          setCalendarCursor(new Date(`${m.date}T12:00`));
+                          setView("calendario");
+                        }}
+                      >
+                        <CalendarDays /> Ver en calendario
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </section>
+              <aside className="side-stack">
+                <section className="panel earnings">
+                  <div className="panel-heading">
+                    <div>
+                      <p>GANANCIAS</p>
+                      <h3>{monthLabel}</h3>
+                    </div>
+                    <CircleEuro />
+                  </div>
+                  <div className="ring">
+                    <div>
+                      <strong>{goalProgress}%</strong>
+                      <span>del objetivo</span>
+                    </div>
+                  </div>
+                  <div className="earn-row">
+                    <span>Cobrado</span>
+                    <strong>{money(monthTotal)}</strong>
+                  </div>
+                  <div className="earn-row">
+                    <span>Objetivo</span>
+                    <strong>{money(data.settings.earningsGoal)}</strong>
+                  </div>
+                  <button onClick={() => setView("ganancias")}>
+                    Ver desglose <ChevronRight />
+                  </button>
+                </section>
+                <section className="excel-card">
+                  <div className="excel-icon">
+                    <FileSpreadsheet />
+                  </div>
+                  <div>
+                    <h3>Excel de temporada</h3>
+                    <p>Genera tu hoja actualizada con todos los meses.</p>
+                    <button onClick={exportExcel}>
+                      <Download /> Descargar .xlsx
+                    </button>
+                  </div>
+                </section>
+              </aside>
+            </div>
+          </section>
+        )}
+
+        {view === "importar" && (
+          <section className="content narrow">
+            <div className="section-intro">
+              <p>IMPORTAR DESIGNACIONES</p>
+              <h2>Sube el PDF de la federación</h2>
+              <span>
+                RefFlow detectará cada partido, los colegiados y los colores de
+                las camisetas.
+              </span>
+            </div>
+            <input
+              ref={fileRef}
+              hidden
+              type="file"
+              accept="application/pdf,.pdf"
+              onChange={(e) => void importPdf(e.target.files?.[0])}
+            />
+            <button
+              type="button"
+              className={`drop-zone ${pdfState}`}
+              onClick={() => fileRef.current?.click()}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                void importPdf(e.dataTransfer.files[0]);
+              }}
+            >
+              <span className="drop-icon">
+                <FileUp />
+              </span>
+              <strong>
+                {pdfState === "reading"
+                  ? "Analizando partidos, colegiados y colores…"
+                  : pdfState === "ready"
+                    ? "Designaciones detectadas"
+                    : pdfState === "error"
+                      ? "No se pudo analizar el PDF"
+                      : "Arrastra aquí el PDF de designaciones"}
+              </strong>
+              <small>
+                {pdfState === "ready"
+                  ? `${pdfFileName} · revisa el resultado antes de importar`
+                  : pdfState === "error"
+                    ? pdfError
+                    : "o pulsa para seleccionarlo · máximo 20 MB"}
+              </small>
+              <span className="fake-button">
+                {pdfState === "ready"
+                  ? "Elegir otro PDF"
+                  : pdfState === "error"
+                    ? "Volver a intentarlo"
+                    : "Seleccionar PDF"}
+              </span>
+            </button>
+            {pdfState === "ready" && pdfImport && (
+              <div className="panel pdf-result">
+                <div className="panel-heading">
+                  <div>
+                    <p>REVISIÓN PREVIA</p>
+                    <h3>
+                      {pdfImport.matches.length}{" "}
+                      {pdfImport.matches.length === 1
+                        ? "designación detectada"
+                        : "designaciones detectadas"}
+                    </h3>
+                  </div>
+                  <span className="pdf-ready-icon">
+                    <Check />
+                  </span>
+                </div>
+                <div className="pdf-summary-grid">
+                  <div>
+                    <strong>{pdfImport.matches.length}</strong>
+                    <span>Partidos</span>
+                  </div>
+                  <div>
+                    <strong>{pdfOfficials.length}</strong>
+                    <span>Compañeros</span>
+                  </div>
+                  <div>
+                    <strong>{pdfNewOfficials.length}</strong>
+                    <span>Nuevos en Árbitros</span>
+                  </div>
+                </div>
+                <div className="pdf-match-list">
+                  {pdfImport.matches.map((match) => {
+                    const savedRate = findSavedRate(
+                      data.rates,
+                      match.category,
+                      match.role,
+                    );
+                    const recommendedShirt = shirtRecommendation(
+                      match.homeColor,
+                      match.awayColor,
+                      data.settings.shirtColors,
+                    );
+                    return (
+                      <article
+                        className="pdf-match-card"
+                        key={`${match.matchNumber}-${match.date}-${match.time}`}
+                      >
+                        <div className="pdf-match-date">
+                          <strong>
+                            {new Date(`${match.date}T12:00:00`).getDate()}
+                          </strong>
+                          <span>
+                            {new Intl.DateTimeFormat("es-ES", {
+                              month: "short",
+                            })
+                              .format(new Date(`${match.date}T12:00:00`))
+                              .toUpperCase()}
+                          </span>
+                        </div>
+                        <div className="pdf-match-main">
+                          <div className="pdf-match-top">
+                            <span>PARTIDO {match.matchNumber}</span>
+                            <small>{match.time}</small>
+                          </div>
+                          <h4>
+                            {match.home} <em>vs</em> {match.away}
+                          </h4>
+                          <p>
+                            {match.category} · {match.role}
+                          </p>
+                          <small>
+                            {match.homeColor || "Color local no indicado"} ·{" "}
+                            {match.awayColor || "Color visitante no indicado"}
+                          </small>
+                          <div
+                            className={`shirt-recommendation ${recommendedShirt ? "available" : "unknown"}`}
+                          >
+                            {recommendedShirt && (
+                              <i
+                                style={{
+                                  backgroundColor:
+                                    data.settings.shirtColors[recommendedShirt],
+                                }}
+                              />
+                            )}
+                            <span>
+                              {recommendedShirt ? (
+                                <>
+                                  Recomendación:{" "}
+                                  <strong>
+                                    {shirtLabel(recommendedShirt)}
+                                  </strong>
+                                </>
+                              ) : (
+                                "No hay colores suficientes para recomendar camiseta"
+                              )}
+                            </span>
+                          </div>
+                          {(match.fbclmUrl || match.fbclmSearchUrl) && (
+                            <a
+                              className={`fbclm-match-link ${match.fbclmUrl ? "found" : "search"}`}
+                              href={match.fbclmUrl || match.fbclmSearchUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              <ExternalLink />
+                              {match.fbclmUrl
+                                ? "Abrir ficha directa en FBCLM"
+                                : "Buscar este partido en FBCLM"}
+                            </a>
+                          )}
+                        </div>
+                        <span
+                          className={`pdf-rate ${savedRate ? "found" : "pending"}`}
+                        >
+                          {savedRate
+                            ? `${money(savedRate.amount)} · tarifa encontrada`
+                            : "Tarifa pendiente"}
+                        </span>
+                      </article>
+                    );
+                  })}
+                </div>
+                <div className="pdf-contact-note">
+                  <Users />
+                  <div>
+                    <strong>Agenda automática</strong>
+                    <span>
+                      Al importar, se crearán los compañeros que todavía no
+                      existan con su nombre y teléfono. Los contactos ya
+                      guardados no se duplicarán.
+                    </span>
+                  </div>
+                </div>
+                <div className="pdf-actions">
+                  <Button variant="outline" onClick={discardPdf}>
+                    Descartar
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => addPdfDesignations("escolar")}
+                  >
+                    Añadir como escolares
+                  </Button>
+                  <Button
+                    className="primary-btn"
+                    onClick={() => addPdfDesignations("regional")}
+                  >
+                    Añadir como regionales
+                  </Button>
+                </div>
+              </div>
+            )}
+            <div className="info-strip">
+              <ShieldCheck />
+              <div>
+                <strong>Tu PDF permanece en este dispositivo</strong>
+                <span>
+                  El PDF se analiza localmente. Para buscar la ficha oficial
+                  solo se cotejan con FBCLM el número, la fecha y los equipos;
+                  únicamente se sincronizan los partidos y contactos que
+                  confirmes.
+                </span>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {view === "calendario" && (
+          <section className="content calendar-page">
+            <MatchCalendar
+              matches={data.matches}
+              cursor={calendarCursor}
+              onChange={setCalendarCursor}
+            />
+          </section>
+        )}
+
+        {(view === "regionales" || view === "escolares") && (
+          <section className="content">
+            <div className="page-heading">
+              <div>
+                <p>
+                  {view === "escolares"
+                    ? "PARTIDOS ESCOLARES"
+                    : "PARTIDOS REGIONALES"}
+                </p>
+                <h2>Temporada {data.settings.season}</h2>
+              </div>
+              <MatchDialog
+                competition={activeCompetition}
+                rates={data.rates}
+                expensePolicy={data.expensePolicy || DEFAULT_EXPENSE_POLICY}
+                onAdd={(m) =>
+                  setData((d) => ({ ...d, matches: [m, ...d.matches] }))
+                }
+              />
+            </div>
+            <div className="panel table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Partido</th>
+                    <th>Categoría / función</th>
+                    <th>Lugar</th>
+                    <th>Neto</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="empty-table">
+                        Aún no hay partidos{" "}
+                        {view === "escolares" ? "escolares" : "regionales"}.
+                      </td>
+                    </tr>
+                  ) : (
+                    filtered
+                      .sort((a, b) => b.date.localeCompare(a.date))
+                      .map((m) => {
+                        const recordedVideo = findRecordedGameForMatch(
+                          m,
+                          recordedGames,
+                        );
+                        const selectedShirt = normalizedShirtChoice(
+                          m.shirtRecommendation,
+                        );
+                        return (
+                          <tr key={m.id}>
+                            <td>
+                              <strong>{dateLabel(m.date)}</strong>
+                              <small>{m.time}</small>
+                            </td>
+                            <td>
+                              <strong>{m.home}</strong>
+                              <small>
+                                vs {m.away}
+                                {m.matchNumber ? ` · Nº ${m.matchNumber}` : ""}
+                              </small>
+                            </td>
+                            <td>
+                              <span className="pill">{m.category}</span>
+                              {m.friendly && (
+                                <span className="friendly-badge">
+                                  Amistoso · 50 %
+                                </span>
+                              )}
+                              <small>{m.role}</small>
+                            </td>
+                            <td>
+                              <span>{m.venue}</span>
+                              <small>
+                                {m.partners.join(", ") || "Sin compañeros"}
+                              </small>
+                            </td>
+                            <td>
+                              <strong>{money(net(m))}</strong>
+                              <small>{money(grossWithExpenses(m))} bruto</small>
+                            </td>
+                            <td>
+                              <div className="row-actions">
+                                {(m.fbclmUrl || m.fbclmSearchUrl) && (
+                                  <a
+                                    className={`fbclm-row-link ${m.fbclmUrl ? "found" : "search"}`}
+                                    href={m.fbclmUrl || m.fbclmSearchUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    aria-label={
+                                      m.fbclmUrl
+                                        ? "Abrir ficha del partido en FBCLM"
+                                        : "Buscar partido en FBCLM"
+                                    }
+                                    title={
+                                      m.fbclmUrl
+                                        ? "Ficha directa en FBCLM"
+                                        : "Buscar en FBCLM"
+                                    }
+                                  >
+                                    <ExternalLink />
+                                  </a>
+                                )}
+                                <EditMatchDialog
+                                  match={m}
+                                  rates={data.rates}
+                                  expensePolicy={
+                                    data.expensePolicy || DEFAULT_EXPENSE_POLICY
+                                  }
+                                  onSave={(updated) =>
+                                    updateMatch(m.id, updated)
+                                  }
+                                />
+                                <button
+                                  type="button"
+                                  className={`shirt-action ${selectedShirt ? "selected" : ""}`}
+                                  onClick={() =>
+                                    updateMatch(m.id, {
+                                      shirtRecommendation:
+                                        selectedShirt === "shirt1"
+                                          ? "shirt2"
+                                          : "shirt1",
+                                    })
+                                  }
+                                  aria-label={
+                                    selectedShirt
+                                      ? `${shirtLabel(selectedShirt)} seleccionada. Pulsar para cambiar.`
+                                      : "Seleccionar camiseta para el partido"
+                                  }
+                                  title={
+                                    selectedShirt
+                                      ? `${shirtLabel(selectedShirt)} · pulsar para cambiar`
+                                      : "Sin camiseta asignada · pulsar para elegir Camiseta 1"
+                                  }
+                                >
+                                  <Shirt
+                                    style={{
+                                      color: selectedShirt
+                                        ? data.settings.shirtColors[
+                                            selectedShirt
+                                          ]
+                                        : "#718095",
+                                    }}
+                                  />
+                                </button>
+                                <button
+                                  disabled={!recordedVideo}
+                                  onClick={() => {
+                                    if (!recordedVideo) return;
+                                    setSelectedGameId(recordedVideo.id);
+                                    setView("grabados");
+                                  }}
+                                  className={recordedVideo ? "selected" : ""}
+                                  aria-label={
+                                    recordedVideo
+                                      ? "Abrir vídeo del partido"
+                                      : "No hay vídeo para este partido"
+                                  }
+                                  title={
+                                    recordedVideo
+                                      ? "Vídeo detectado · abrir análisis"
+                                      : "No hay ningún vídeo correspondiente"
+                                  }
+                                >
+                                  <Video />
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    setData((d) => ({
+                                      ...d,
+                                      matches: d.matches.filter(
+                                        (x) => x.id !== m.id,
+                                      ),
+                                    }))
+                                  }
+                                  aria-label="Eliminar partido"
+                                  title="Eliminar partido"
+                                >
+                                  <X />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+
+        {view === "grabados" && (
+          <section className="content video-analysis-page">
+            <div className="page-heading">
+              <div>
+                <p>ANÁLISIS DE VÍDEO</p>
+                <h2>Partidos grabados</h2>
+              </div>
+              <VideoDialog
+                matches={data.matches}
+                onAdd={(game) => {
+                  setData((d) => ({
+                    ...d,
+                    recordedGames: [...(d.recordedGames || []), game],
+                  }));
+                  setSelectedGameId(game.id);
+                }}
+              />
+            </div>
+            {recordedGames.length === 0 ? (
+              <div className="panel video-empty">
+                <span>
+                  <Video />
+                </span>
+                <h3>Añade tu primer partido</h3>
+                <p>
+                  Pega un enlace de YouTube y podrás guardar acciones en el
+                  minuto y segundo exactos.
+                </p>
+                <VideoDialog
+                  matches={data.matches}
+                  onAdd={(game) => {
+                    setData((d) => ({ ...d, recordedGames: [game] }));
+                    setSelectedGameId(game.id);
+                  }}
+                />
+              </div>
+            ) : (
+              <div className="video-workspace">
+                <aside className="panel video-library">
+                  <div className="video-library-title">
+                    <div>
+                      <p>VÍDEOS</p>
+                      <strong>
+                        {recordedGames.length}{" "}
+                        {recordedGames.length === 1 ? "partido" : "partidos"}
+                      </strong>
+                    </div>
+                    <Video />
+                  </div>
+                  {recordedGames.map((game) => (
+                    <button
+                      key={game.id}
+                      className={selectedGame?.id === game.id ? "active" : ""}
+                      onClick={() => setSelectedGameId(game.id)}
+                    >
+                      <span className="video-list-icon">
+                        <Play />
+                      </span>
+                      <span>
+                        <strong>{game.title}</strong>
+                        <small>{game.annotations.length} anotaciones</small>
+                      </span>
+                      <ChevronRight />
+                    </button>
+                  ))}
+                </aside>
+                {selectedGame && (
+                  <div className="analyzer-main">
+                    <div
+                      ref={analysisStageRef}
+                      className={`analysis-stage ${analysisFullscreen ? "analysis-fullscreen" : ""}`}
+                    >
+                      <section className="panel player-panel">
+                        <div className="player-heading">
+                          <div>
+                            <p>ANALIZANDO</p>
+                            <h3>{selectedGame.title}</h3>
+                          </div>
+                          <div className="player-heading-actions">
+                            <button
+                              className="fullscreen-toggle"
+                              onClick={toggleAnalysisFullscreen}
+                              aria-label={
+                                analysisFullscreen
+                                  ? "Salir de pantalla completa"
+                                  : "Analizar a pantalla completa"
+                              }
+                            >
+                              {analysisFullscreen ? (
+                                <Minimize2 />
+                              ) : (
+                                <Maximize2 />
+                              )}
+                              <span>
+                                {analysisFullscreen
+                                  ? "Salir"
+                                  : "Pantalla completa"}
+                              </span>
+                            </button>
+                            <a
+                              href={selectedGame.youtubeUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              Abrir en YouTube <ExternalLink />
+                            </a>
+                          </div>
+                        </div>
+                        <div className="youtube-frame">
+                          <div ref={playerMountRef} />
+                        </div>
+                        <div className="capture-bar">
+                          <div className="time-inputs">
+                            <TimerReset />
+                            <label>
+                              Min
+                              <input
+                                type="number"
+                                min="0"
+                                value={manualMinute}
+                                onChange={(e) =>
+                                  setManualMinute(
+                                    Math.max(0, Number(e.target.value)),
+                                  )
+                                }
+                              />
+                            </label>
+                            <span>:</span>
+                            <label>
+                              Seg
+                              <input
+                                type="number"
+                                min="0"
+                                max="59"
+                                value={manualSecond}
+                                onChange={(e) =>
+                                  setManualSecond(
+                                    Math.min(
+                                      59,
+                                      Math.max(0, Number(e.target.value)),
+                                    ),
+                                  )
+                                }
+                              />
+                            </label>
+                          </div>
+                          <button
+                            onClick={() => {
+                              const seconds = currentSeconds();
+                              setManualMinute(Math.floor(seconds / 60));
+                              setManualSecond(seconds % 60);
+                            }}
+                          >
+                            <Clock3 /> Capturar instante actual
+                          </button>
+                          <strong>
+                            {timeLabel(manualMinute * 60 + manualSecond)}
+                          </strong>
+                        </div>
+                        <div className="note-box">
+                          <textarea
+                            value={annotationNote}
+                            onChange={(e) => setAnnotationNote(e.target.value)}
+                            placeholder="Nota opcional: qué ocurrió, posición, decisión…"
+                          />
+                          <button
+                            disabled={!annotationNote.trim()}
+                            onClick={() =>
+                              addAnnotation("Nota libre", "Anotación")
+                            }
+                          >
+                            Guardar nota
+                          </button>
+                        </div>
+                      </section>
+                      <section className="panel quick-tags">
+                        <div className="panel-heading">
+                          <div>
+                            <p>ANOTACIONES RÁPIDAS</p>
+                            <h3>
+                              Pulsa para guardar en{" "}
+                              {playerReady
+                                ? "el instante actual"
+                                : timeLabel(manualMinute * 60 + manualSecond)}
+                            </h3>
+                          </div>
+                          <div className="quick-tags-tools">
+                            <Tag />
+                            <button
+                              className="quick-tags-exit"
+                              onClick={toggleAnalysisFullscreen}
+                              aria-label="Salir de pantalla completa"
+                            >
+                              <Minimize2 />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="tag-groups">
+                          {annotationGroups.map((group) => (
+                            <div
+                              className={`tag-group ${group.name === "Dudas habituales" ? "common-doubts" : ""}`}
+                              key={group.name}
+                              style={{ borderLeftColor: group.color }}
+                            >
+                              <div className="tag-group-title">
+                                <span style={{ background: group.color }} />
+                                <strong>{group.name}</strong>
+                              </div>
+                              <div className="tag-buttons">
+                                {group.items.map((item) => (
+                                  <button
+                                    key={item}
+                                    onClick={() =>
+                                      addAnnotation(group.name, item)
+                                    }
+                                  >
+                                    <span style={{ background: group.color }} />
+                                    {item}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </section>
+                    </div>
+                    <section className="panel annotations-panel">
+                      <div className="panel-heading">
+                        <div>
+                          <p>LÍNEA DE TIEMPO</p>
+                          <h3>{selectedGame.annotations.length} anotaciones</h3>
+                        </div>
+                        <div className="timeline-actions">
+                          <button
+                            className="report-button"
+                            onClick={exportVideoReport}
+                            disabled={selectedGame.annotations.length === 0}
+                          >
+                            <FileText /> Finalizar y descargar PDF
+                          </button>
+                          <Clock3 />
+                        </div>
+                      </div>
+                      {selectedGame.annotations.length === 0 ? (
+                        <div className="annotation-empty">
+                          Reproduce el vídeo y pulsa una etiqueta rápida para
+                          crear la primera anotación.
+                        </div>
+                      ) : (
+                        <div className="annotation-list">
+                          {[...selectedGame.annotations]
+                            .sort((a, b) => a.seconds - b.seconds)
+                            .map((annotation) => (
+                              <div
+                                className="annotation-row"
+                                key={annotation.id}
+                              >
+                                <button
+                                  className="timestamp"
+                                  onClick={() => seekTo(annotation.seconds)}
+                                  title="Reproducir desde 3 segundos antes"
+                                  aria-label={`Reproducir ${annotation.label} desde 3 segundos antes`}
+                                >
+                                  <Play /> {timeLabel(annotation.seconds)}
+                                </button>
+                                <span
+                                  className="annotation-color"
+                                  style={{
+                                    background:
+                                      annotationGroups.find(
+                                        (group) =>
+                                          group.name === annotation.category,
+                                      )?.color || "#0b5cff",
+                                  }}
+                                />
+                                <div>
+                                  <strong>{annotation.label}</strong>
+                                  <small>
+                                    {annotation.category}
+                                    {annotation.note
+                                      ? ` · ${annotation.note}`
+                                      : ""}
+                                  </small>
+                                </div>
+                                <button
+                                  className="annotation-delete"
+                                  onClick={() =>
+                                    setData((d) => ({
+                                      ...d,
+                                      recordedGames: (
+                                        d.recordedGames || []
+                                      ).map((game) =>
+                                        game.id === selectedGame.id
+                                          ? {
+                                              ...game,
+                                              annotations:
+                                                game.annotations.filter(
+                                                  (item) =>
+                                                    item.id !== annotation.id,
+                                                ),
+                                            }
+                                          : game,
+                                      ),
+                                    }))
+                                  }
+                                  aria-label="Eliminar anotación"
+                                >
+                                  <Trash2 />
+                                </button>
+                              </div>
+                            ))}
+                        </div>
+                      )}
+                    </section>
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+        )}
+
+        {view === "ganancias" && (
+          <section className="content">
+            <div className="page-heading">
+              <div>
+                <p>GANANCIAS</p>
+                <h2>Resumen económico</h2>
+              </div>
+              <Button className="primary-btn" onClick={exportExcel}>
+                <FileSpreadsheet /> Exportar Excel
+              </Button>
+            </div>
+            <nav
+              className="earnings-period-tabs"
+              role="tablist"
+              aria-label="Periodo de ganancias"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={earningsPeriod === "general"}
+                className={earningsPeriod === "general" ? "active" : ""}
+                onClick={() => setEarningsPeriod("general")}
+              >
+                <strong>General</strong>
+                <small>{matchCountLabel(data.matches.length)}</small>
+              </button>
+              {earningsMonths.map((month) => (
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={earningsPeriod === month.key}
+                  className={earningsPeriod === month.key ? "active" : ""}
+                  key={month.key}
+                  onClick={() => setEarningsPeriod(month.key)}
+                >
+                  <strong>{month.shortLabel}</strong>
+                  <small>{month.matches.length || "Sin partidos"}</small>
+                </button>
+              ))}
+            </nav>
+            {earningsPeriod === "general" ? (
+              <>
+                <div className="kpi-grid">
+                  <article className="kpi primary">
+                    <div>
+                      <span>ESTA SEMANA</span>
+                      <strong>{money(weekTotal)}</strong>
+                      <small>
+                        {matchCountLabel(weekMatches.length)} · Neto estimado
+                      </small>
+                    </div>
+                    <WalletCards />
+                  </article>
+                  <article className="kpi">
+                    <div>
+                      <span>ESTE MES</span>
+                      <strong>{money(monthTotal)}</strong>
+                      <small>{monthLabel}</small>
+                    </div>
+                    <BarChart3 />
+                  </article>
+                  <article className="kpi">
+                    <div>
+                      <span>TEMPORADA</span>
+                      <strong>{money(total)}</strong>
+                      <small>{data.matches.length} designaciones</small>
+                    </div>
+                    <Trophy />
+                  </article>
+                </div>
+                <div className="panel finance-list">
+                  <div className="panel-heading">
+                    <div>
+                      <p>DESGLOSE GENERAL</p>
+                      <h3>Ingresos por partido</h3>
+                    </div>
+                  </div>
+                  {data.matches.length === 0 ? (
+                    <div className="finance-empty">
+                      Aún no hay ingresos registrados esta temporada.
+                    </div>
+                  ) : (
+                    data.matches.map((m) => (
+                      <div className="finance-row" key={m.id}>
+                        <div>
+                          <strong>
+                            {m.home} – {m.away}
+                          </strong>
+                          <small>
+                            {dateLabel(m.date)} · {m.category}
+                          </small>
+                        </div>
+                        <span>{financialBreakdown(m)}</span>
+                        <strong>{money(net(m))}</strong>
+                      </div>
+                    ))
+                  )}
+                </div>
+                <div className="earnings-split">
+                  {[
+                    {
+                      key: "escolares",
+                      label: "Escolares",
+                      matches: schoolMatches,
+                      total: schoolTotal,
+                    },
+                    {
+                      key: "regionales",
+                      label: "Regionales",
+                      matches: regionalMatches,
+                      total: regionalTotal,
+                    },
+                  ].map((group) => (
+                    <div className="panel finance-list" key={group.key}>
+                      <div className="panel-heading">
+                        <div>
+                          <p>GANANCIAS</p>
+                          <h3>{group.label}</h3>
+                        </div>
+                        <div className="finance-heading-total">
+                          <strong>{money(group.total)}</strong>
+                          <button onClick={() => setView(group.key as View)}>
+                            Ver partidos <ChevronRight />
+                          </button>
+                        </div>
+                      </div>
+                      {group.matches.length === 0 ? (
+                        <div className="finance-empty">
+                          Aún no hay ingresos de partidos{" "}
+                          {group.label.toLowerCase()}.
+                        </div>
+                      ) : (
+                        group.matches.map((m) => (
+                          <div className="finance-row" key={m.id}>
+                            <div>
+                              <strong>
+                                {m.home} – {m.away}
+                              </strong>
+                              <small>
+                                {dateLabel(m.date)} · {m.category}
+                              </small>
+                            </div>
+                            <span>{financialBreakdown(m)}</span>
+                            <strong>{money(net(m))}</strong>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              selectedEarningsMonth && (
+                <>
+                  <div className="month-heading">
+                    <div>
+                      <p>RESUMEN MENSUAL</p>
+                      <h3>{selectedEarningsMonth.label}</h3>
+                    </div>
+                    <span>{matchCountLabel(selectedMonthMatches.length)}</span>
+                  </div>
+                  <div className="kpi-grid monthly-kpis">
+                    <article className="kpi primary">
+                      <div>
+                        <span>NETO ESTIMADO</span>
+                        <strong>{money(selectedEarningsMonth.total)}</strong>
+                        <small>
+                          {matchCountLabel(selectedMonthMatches.length)}
+                        </small>
+                      </div>
+                      <WalletCards />
+                    </article>
+                    <article className="kpi">
+                      <div>
+                        <span>BRUTO + DIETAS</span>
+                        <strong>{money(selectedEarningsMonth.gross)}</strong>
+                        <small>Antes de retención</small>
+                      </div>
+                      <CircleEuro />
+                    </article>
+                    <article className="kpi">
+                      <div>
+                        <span>MEDIA POR PARTIDO</span>
+                        <strong>
+                          {money(
+                            selectedMonthMatches.length
+                              ? selectedEarningsMonth.total /
+                                  selectedMonthMatches.length
+                              : 0,
+                          )}
+                        </strong>
+                        <small>Neto estimado</small>
+                      </div>
+                      <BarChart3 />
+                    </article>
+                  </div>
+                  <div className="panel finance-list">
+                    <div className="panel-heading">
+                      <div>
+                        <p>DESGLOSE DEL MES</p>
+                        <h3>{selectedEarningsMonth.label}</h3>
+                      </div>
+                      <div className="finance-heading-total">
+                        <strong>{money(selectedEarningsMonth.total)}</strong>
+                        <small>Neto total</small>
+                      </div>
+                    </div>
+                    {selectedMonthMatches.length === 0 ? (
+                      <div className="finance-empty">
+                        No hay partidos registrados en{" "}
+                        {selectedEarningsMonth.label.toLowerCase()}.
+                      </div>
+                    ) : (
+                      selectedMonthMatches.map((m) => (
+                        <div className="finance-row" key={m.id}>
+                          <div>
+                            <strong>
+                              {m.home} – {m.away}
+                            </strong>
+                            <small>
+                              {dateLabel(m.date)} · {m.category} · {m.role}
+                            </small>
+                          </div>
+                          <span>{financialBreakdown(m)}</span>
+                          <strong>{money(net(m))}</strong>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  <div className="earnings-split">
+                    {[
+                      {
+                        key: "escolares",
+                        label: "Escolares",
+                        matches: selectedMonthSchoolMatches,
+                      },
+                      {
+                        key: "regionales",
+                        label: "Regionales",
+                        matches: selectedMonthRegionalMatches,
+                      },
+                    ].map((group) => {
+                      const groupTotal = group.matches.reduce(
+                        (sum, match) => sum + net(match),
+                        0,
+                      );
+                      return (
+                        <div className="panel finance-list" key={group.key}>
+                          <div className="panel-heading">
+                            <div>
+                              <p>
+                                {selectedEarningsMonth.shortLabel.toUpperCase()}
+                              </p>
+                              <h3>{group.label}</h3>
+                            </div>
+                            <div className="finance-heading-total">
+                              <strong>{money(groupTotal)}</strong>
+                              <button
+                                onClick={() => setView(group.key as View)}
+                              >
+                                Ver partidos <ChevronRight />
+                              </button>
+                            </div>
+                          </div>
+                          {group.matches.length === 0 ? (
+                            <div className="finance-empty">
+                              Sin partidos {group.label.toLowerCase()} este mes.
+                            </div>
+                          ) : (
+                            group.matches.map((m) => (
+                              <div className="finance-row" key={m.id}>
+                                <div>
+                                  <strong>
+                                    {m.home} – {m.away}
+                                  </strong>
+                                  <small>
+                                    {dateLabel(m.date)} · {m.category}
+                                  </small>
+                                </div>
+                                <span>{financialBreakdown(m)}</span>
+                                <strong>{money(net(m))}</strong>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )
+            )}
+          </section>
+        )}
+
+        {view === "arbitros" && (
+          <section className="content">
+            <div className="page-heading">
+              <div>
+                <p>AGENDA</p>
+                <h2>Compañeros</h2>
+              </div>
+              <Button
+                className="primary-btn"
+                onClick={() => {
+                  const name = prompt("Nombre del árbitro");
+                  if (name)
+                    setData((d) => ({
+                      ...d,
+                      contacts: [
+                        ...d.contacts,
+                        { id: makeId(), name, phone: "", role: "Árbitro" },
+                      ],
+                    }));
+                }}
+              >
+                <Plus /> Añadir árbitro
+              </Button>
+            </div>
+            {data.contacts.length === 0 ? (
+              <div className="panel contacts-empty">
+                <Users />
+                <h3>Aún no hay compañeros</h3>
+                <p>
+                  Los árbitros y oficiales aparecerán aquí automáticamente
+                  cuando importes una designación.
+                </p>
+              </div>
+            ) : (
+              <div className="contact-grid">
+                {data.contacts.map((c) => (
+                  <article className="contact-card" key={c.id}>
+                    <span className="avatar">
+                      {c.name
+                        .split(" ")
+                        .map((x) => x[0])
+                        .slice(0, 2)
+                        .join("")}
+                    </span>
+                    <div>
+                      <h3>{c.name}</h3>
+                      <p>
+                        {c.role}
+                        {c.city ? ` · ${c.city}` : ""}
+                      </p>
+                      <span>{c.phone || "Teléfono pendiente"}</span>
+                    </div>
+                    <div className="contact-actions">
+                      <button
+                        onClick={() => {
+                          const phone = prompt("Número de teléfono", c.phone);
+                          if (phone !== null)
+                            setData((d) => ({
+                              ...d,
+                              contacts: d.contacts.map((x) =>
+                                x.id === c.id ? { ...x, phone } : x,
+                              ),
+                            }));
+                        }}
+                        aria-label={`Editar teléfono de ${c.name}`}
+                      >
+                        <Pencil />
+                      </button>
+                      <button
+                        disabled={!c.phone}
+                        onClick={() =>
+                          window.open(
+                            `https://wa.me/34${c.phone.replace(/\D/g, "")}`,
+                            "_blank",
+                            "noopener,noreferrer",
+                          )
+                        }
+                      >
+                        <MessageCircle /> WhatsApp
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {view === "tarifas" && (
+          <section className="content">
+            <div className="page-heading">
+              <div>
+                <p>TARIFAS</p>
+                <h2>Temporada {data.settings.season}</h2>
+              </div>
+              <Button
+                className="primary-btn"
+                onClick={() =>
+                  setData((d) => ({
+                    ...d,
+                    rates: [
+                      ...d.rates,
+                      {
+                        id: makeId(),
+                        category: "Nueva categoría",
+                        role: "Árbitro",
+                        amount: 0,
+                        retention: RETENTION_RATE,
+                      },
+                    ],
+                  }))
+                }
+              >
+                <Plus /> Nueva tarifa
+              </Button>
+            </div>
+            <div className="panel table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Competición</th>
+                    <th>Función</th>
+                    <th>Tarifa</th>
+                    <th>Retención</th>
+                    <th>Neto</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.rates.map((r) => (
+                    <tr key={r.id}>
+                      <td>
+                        <Input
+                          value={r.category}
+                          readOnly={Boolean(r.locked)}
+                          onChange={(e) =>
+                            setData((d) => ({
+                              ...d,
+                              rates: d.rates.map((x) =>
+                                x.id === r.id
+                                  ? { ...x, category: e.target.value }
+                                  : x,
+                              ),
+                            }))
+                          }
+                        />
+                      </td>
+                      <td>
+                        <Input
+                          value={r.role}
+                          readOnly={Boolean(r.locked)}
+                          onChange={(e) =>
+                            setData((d) => ({
+                              ...d,
+                              rates: d.rates.map((x) =>
+                                x.id === r.id
+                                  ? { ...x, role: e.target.value }
+                                  : x,
+                              ),
+                            }))
+                          }
+                        />
+                      </td>
+                      <td>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={r.amount}
+                          readOnly={Boolean(r.locked)}
+                          onChange={(e) =>
+                            setData((d) => ({
+                              ...d,
+                              rates: d.rates.map((x) =>
+                                x.id === r.id
+                                  ? { ...x, amount: Number(e.target.value) }
+                                  : x,
+                              ),
+                            }))
+                          }
+                        />
+                      </td>
+                      <td>
+                        <Input
+                          type="number"
+                          value={RETENTION_RATE}
+                          readOnly
+                          aria-label="Retención fija del 2 por ciento"
+                        />
+                      </td>
+                      <td>
+                        <strong>
+                          {money(r.amount * (1 - RETENTION_RATE / 100))}
+                        </strong>
+                      </td>
+                      <td>
+                        {r.locked ? (
+                          <small
+                            title={`Tarifa oficial fija de la temporada ${data.rateSheet?.season || "2026/27"}`}
+                          >
+                            Oficial{" "}
+                            {shortSeasonName(
+                              data.rateSheet?.season || "2026/27",
+                            )}
+                          </small>
+                        ) : (
+                          <button
+                            className="icon-delete"
+                            aria-label="Eliminar tarifa"
+                            onClick={() =>
+                              setData((d) => ({
+                                ...d,
+                                rates: d.rates.filter((x) => x.id !== r.id),
+                              }))
+                            }
+                          >
+                            <X />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+
+        {view === "ajustes" && (
+          <section className="content narrow">
+            <div className="section-intro">
+              <p>AJUSTES</p>
+              <h2>Personaliza RefFlow</h2>
+              <span>
+                Configura tu perfil, las temporadas, las camisetas y las tarifas
+                oficiales.
+              </span>
+            </div>
+            <nav
+              className="settings-tabs"
+              role="tablist"
+              aria-label="Secciones de ajustes"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={settingsTab === "profile"}
+                className={settingsTab === "profile" ? "active" : ""}
+                onClick={() => setSettingsTab("profile")}
+              >
+                <Settings /> Perfil y cuenta
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={settingsTab === "seasons"}
+                className={settingsTab === "seasons" ? "active" : ""}
+                onClick={() => setSettingsTab("seasons")}
+              >
+                <Trophy /> Temporadas y camisetas
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={settingsTab === "notifications"}
+                className={settingsTab === "notifications" ? "active" : ""}
+                onClick={() => setSettingsTab("notifications")}
+              >
+                <Bell /> Avisos
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={settingsTab === "rates"}
+                className={settingsTab === "rates" ? "active" : ""}
+                onClick={() => setSettingsTab("rates")}
+              >
+                <FileText /> Tarifas PDF
+              </button>
+            </nav>
+            {settingsTab === "profile" ? (
+              <div className="panel settings-form">
+                <div className="settings-profile wide">
+                  <span className="settings-avatar">
+                    {data.settings.profileImage ? (
+                      <img
+                        src={data.settings.profileImage}
+                        alt="Foto de perfil"
+                      />
+                    ) : (
+                      initials
+                    )}
+                  </span>
+                  <div>
+                    <strong>Foto de perfil</strong>
+                    <span>
+                      Se recorta automáticamente y solo se guarda en tu cuenta.
+                    </span>
+                    <div className="settings-photo-actions">
+                      <input
+                        ref={profileFileRef}
+                        hidden
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        onChange={(event) =>
+                          void changeProfileImage(event.target.files?.[0])
+                        }
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={profileBusy}
+                        onClick={() => profileFileRef.current?.click()}
+                      >
+                        <Camera />{" "}
+                        {data.settings.profileImage
+                          ? "Cambiar foto"
+                          : "Añadir foto"}
+                      </Button>
+                      {data.settings.profileImage && (
+                        <button
+                          type="button"
+                          className="text-action"
+                          onClick={() => {
+                            setData((current) => ({
+                              ...current,
+                              settings: {
+                                ...current.settings,
+                                profileImage: "",
+                              },
+                            }));
+                            setProfileMessage("Foto eliminada.");
+                          }}
+                        >
+                          Eliminar
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <label>
+                  Nombre tal como aparece en las designaciones
+                  <Input
+                    value={data.settings.name}
+                    onChange={(e) =>
+                      setData((d) => ({
+                        ...d,
+                        settings: { ...d.settings, name: e.target.value },
+                      }))
+                    }
+                  />
+                </label>
+                <label>
+                  Objetivo mensual de ganancias
+                  <Input
+                    type="number"
+                    min="0"
+                    step="10"
+                    value={data.settings.earningsGoal}
+                    onChange={(e) =>
+                      setData((d) => ({
+                        ...d,
+                        settings: {
+                          ...d.settings,
+                          earningsGoal: Math.max(
+                            0,
+                            Number(e.target.value) || 0,
+                          ),
+                        },
+                      }))
+                    }
+                  />
+                  <small>
+                    Se usa en el porcentaje de la pantalla de inicio.
+                  </small>
+                </label>
+                <label>
+                  Nombre de usuario
+                  <div className="username-control">
+                    <Input
+                      value={usernameDraft}
+                      onChange={(e) => {
+                        setUsernameDraft(e.target.value);
+                        setProfileMessage("");
+                      }}
+                      placeholder="mateo.garcia"
+                      autoComplete="username"
+                    />
+                    <Button
+                      type="button"
+                      disabled={profileBusy}
+                      onClick={() => void saveUsername()}
+                    >
+                      {profileBusy ? "Guardando…" : "Guardar usuario"}
+                    </Button>
+                  </div>
+                  <small>
+                    De 3 a 24 caracteres, sin espacios. Podrás iniciar sesión
+                    con este nombre o con tu correo.
+                  </small>
+                </label>
+                {profileMessage && (
+                  <p className="settings-message wide">{profileMessage}</p>
+                )}
+                <div className="setting-row">
+                  <div>
+                    <strong>Instalar RefFlow para Android</strong>
+                    <span>
+                      Descarga la aplicación oficial. Solo es compatible con
+                      dispositivos Android 7.0 o posteriores.
+                    </span>
+                  </div>
+                  <a
+                    className="text-link apk-download-link"
+                    href="/downloads/RefFlow-v1.0.apk"
+                    download
+                  >
+                    <Download /> Descargar APK
+                  </a>
+                </div>
+              </div>
+            ) : settingsTab === "seasons" ? (
+              <div className="season-settings">
+                <div className="panel season-overview">
+                  <div>
+                    <span className="season-overview-icon">
+                      <Trophy />
+                    </span>
+                    <div>
+                      <p>TEMPORADA SELECCIONADA</p>
+                      <h3>{shortSeasonName(data.settings.season)}</h3>
+                      <span>
+                        {matchCountLabel(data.matches.length)} · {money(total)}{" "}
+                        netos
+                      </span>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    className="close-season-button"
+                    disabled={data.seasonStatus === "closed"}
+                    onClick={() => setCloseSeasonOpen(true)}
+                  >
+                    {data.seasonStatus === "closed"
+                      ? "Temporada cerrada"
+                      : "Cerrar temporada"}
+                  </Button>
+                </div>
+                <div className="season-list" aria-label="Temporadas guardadas">
+                  {seasonOptions.map((season) => {
+                    const seasonTotal = season.matches.reduce(
+                      (sum, match) => sum + net(match),
+                      0,
+                    );
+                    return (
+                      <button
+                        type="button"
+                        className={`season-card ${season.selected ? "selected" : ""}`}
+                        aria-pressed={season.selected}
+                        key={season.id}
+                        onClick={() => selectSeason(season.id)}
+                      >
+                        <span className="season-card-icon">
+                          <CalendarDays />
+                        </span>
+                        <span className="season-card-main">
+                          <span>
+                            <strong>{shortSeasonName(season.name)}</strong>
+                            <em className={season.status}>
+                              {season.status === "open"
+                                ? "En curso"
+                                : "Cerrada"}
+                            </em>
+                          </span>
+                          <small>
+                            {matchCountLabel(season.matches.length)} ·{" "}
+                            {season.recordedGames.length}{" "}
+                            {season.recordedGames.length === 1
+                              ? "vídeo"
+                              : "vídeos"}
+                          </small>
+                        </span>
+                        <span className="season-card-total">
+                          <strong>{money(seasonTotal)}</strong>
+                          <small>
+                            {season.selected ? "Viendo ahora" : "Ver temporada"}
+                          </small>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="panel shirt-settings">
+                  <div className="shirt-settings-heading">
+                    <div>
+                      <p>CAMISETAS DE ARBITRAJE</p>
+                      <h3>Colores para las recomendaciones</h3>
+                      <span>
+                        Al pulsar cada círculo se abre la ruleta de color del
+                        dispositivo.
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setData((current) => ({
+                          ...current,
+                          settings: {
+                            ...current.settings,
+                            shirtColors: DEFAULT_SHIRT_COLORS,
+                          },
+                        }))
+                      }
+                    >
+                      Restablecer
+                    </button>
+                  </div>
+                  <div className="shirt-color-grid">
+                    <label>
+                      <input
+                        type="color"
+                        value={data.settings.shirtColors.shirt1}
+                        onChange={(event) =>
+                          setData((current) => ({
+                            ...current,
+                            settings: {
+                              ...current.settings,
+                              shirtColors: {
+                                ...current.settings.shirtColors,
+                                shirt1: event.target.value,
+                              },
+                            },
+                          }))
+                        }
+                        aria-label="Color de la camiseta 1"
+                      />
+                      <span>
+                        <strong>Camiseta 1</strong>
+                        <small>
+                          {data.settings.shirtColors.shirt1.toUpperCase()}
+                        </small>
+                      </span>
+                    </label>
+                    <label>
+                      <input
+                        type="color"
+                        value={data.settings.shirtColors.shirt2}
+                        onChange={(event) =>
+                          setData((current) => ({
+                            ...current,
+                            settings: {
+                              ...current.settings,
+                              shirtColors: {
+                                ...current.settings.shirtColors,
+                                shirt2: event.target.value,
+                              },
+                            },
+                          }))
+                        }
+                        aria-label="Color de la camiseta 2"
+                      />
+                      <span>
+                        <strong>Camiseta 2</strong>
+                        <small>
+                          {data.settings.shirtColors.shirt2.toUpperCase()}
+                        </small>
+                      </span>
+                    </label>
+                  </div>
+                  <div className="shirt-settings-note">
+                    <ShieldCheck />
+                    <span>
+                      RefFlow compara directamente estos dos colores con las
+                      camisetas del equipo local y visitante indicadas en el
+                      PDF.
+                    </span>
+                  </div>
+                </div>
+                <div className="panel season-help">
+                  <ShieldCheck />
+                  <div>
+                    <strong>Tu historial queda guardado</strong>
+                    <span>
+                      Al cerrar una temporada se conservan sus partidos,
+                      ganancias y vídeos. La siguiente empieza sin partidos,
+                      pero mantiene tu perfil, compañeros y tarifas.
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ) : settingsTab === "notifications" ? (
+              <div className="notification-settings">
+                <div className="panel notification-hero">
+                  <span
+                    className={`notification-icon ${notificationDeviceReady ? "enabled" : ""}`}
+                  >
+                    <Bell />
+                  </span>
+                  <div>
+                    <p>AVISOS DE PARTIDOS</p>
+                    <h3>
+                      {notificationDeviceReady
+                        ? "Avisos activos en este dispositivo"
+                        : (
+                              data.notificationSettings ||
+                              DEFAULT_NOTIFICATION_SETTINGS
+                            ).enabled
+                          ? "Actívalos también en este dispositivo"
+                          : "No te olvides de una designación"}
+                    </h3>
+                    <span>
+                      RefFlow puede avisarte aunque la aplicación esté cerrada.
+                      Puedes activar el ordenador y el móvil por separado.
+                    </span>
+                  </div>
+                  <Button
+                    type="button"
+                    className={
+                      notificationDeviceReady
+                        ? "notification-disable"
+                        : "primary-btn"
+                    }
+                    disabled={notificationBusy}
+                    onClick={() =>
+                      void (notificationDeviceReady
+                        ? disableNotifications()
+                        : enableNotifications())
+                    }
+                  >
+                    {notificationBusy
+                      ? "Comprobando…"
+                      : notificationDeviceReady
+                        ? "Desactivar en este dispositivo"
+                        : "Activar en este dispositivo"}
+                  </Button>
+                </div>
+                <div className="panel notification-options">
+                  <label>
+                    <span>
+                      <strong>Cuándo quieres recibir el aviso</strong>
+                      <small>Se aplica a todos los próximos partidos.</small>
+                    </span>
+                    <NativeSelect
+                      value={String(
+                        (
+                          data.notificationSettings ||
+                          DEFAULT_NOTIFICATION_SETTINGS
+                        ).reminderMinutes,
+                      )}
+                      disabled={
+                        !(
+                          data.notificationSettings ||
+                          DEFAULT_NOTIFICATION_SETTINGS
+                        ).enabled
+                      }
+                      onChange={(event) =>
+                        setData((current) => ({
+                          ...current,
+                          notificationSettings: {
+                            enabled:
+                              current.notificationSettings?.enabled || false,
+                            reminderMinutes: Number(event.target.value),
+                          },
+                        }))
+                      }
+                    >
+                      <NativeSelectOption value="60">
+                        1 hora antes
+                      </NativeSelectOption>
+                      <NativeSelectOption value="180">
+                        3 horas antes
+                      </NativeSelectOption>
+                      <NativeSelectOption value="720">
+                        12 horas antes
+                      </NativeSelectOption>
+                      <NativeSelectOption value="1440">
+                        1 día antes
+                      </NativeSelectOption>
+                      <NativeSelectOption value="2880">
+                        2 días antes
+                      </NativeSelectOption>
+                    </NativeSelect>
+                  </label>
+                  <div className="notification-note">
+                    <ShieldCheck />
+                    <span>
+                      Solo se envían recordatorios de tus partidos. Puedes
+                      desactivarlos aquí o desde los ajustes del dispositivo.
+                    </span>
+                  </div>
+                  {notificationMessage && (
+                    <p className="settings-message">{notificationMessage}</p>
+                  )}
+                </div>
+                <div className="panel season-help">
+                  <CalendarDays />
+                  <div>
+                    <strong>Calendario y avisos siempre sincronizados</strong>
+                    <span>
+                      Al importar, editar o borrar una designación, RefFlow
+                      actualiza automáticamente el calendario y el próximo
+                      aviso.
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="rate-analyzer">
+                <div className="panel rate-source-card">
+                  <span className="season-overview-icon">
+                    <CircleEuro />
+                  </span>
+                  <div>
+                    <p>TARIFAS OFICIALES ACTIVAS</p>
+                    <h3>
+                      {shortSeasonName(data.rateSheet?.season || "2026/27")}
+                    </h3>
+                    <span>
+                      {data.rates.filter((rate) => rate.locked).length} importes
+                      · retención fija del 2 %
+                      {data.rateSheet?.source === "pdf"
+                        ? ` · ${data.rateSheet.fileName}`
+                        : " · incluidas en RefFlow"}
+                    </span>
+                  </div>
+                </div>
+                <input
+                  ref={rateFileRef}
+                  hidden
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  onClick={(event) => {
+                    event.currentTarget.value = "";
+                  }}
+                  onChange={(event) =>
+                    void analyzeRatePdf(event.target.files?.[0])
+                  }
+                />
+                <button
+                  type="button"
+                  className={`drop-zone rate-drop-zone ${ratePdfState}`}
+                  disabled={ratePdfState === "reading"}
+                  onClick={() => rateFileRef.current?.click()}
+                >
+                  <span className="drop-icon">
+                    {ratePdfState === "ready" ? <Check /> : <UploadCloud />}
+                  </span>
+                  <strong>
+                    {ratePdfState === "reading"
+                      ? "Analizando tarifas…"
+                      : ratePdfState === "error"
+                        ? "No se pudo analizar"
+                        : "Sube el PDF oficial de tarifas"}
+                  </strong>
+                  <small>
+                    {ratePdfFileName ||
+                      "El análisis se hace en tu dispositivo · máximo 20 MB"}
+                  </small>
+                  <span className="fake-button">
+                    {ratePdfState === "reading"
+                      ? "Leyendo PDF"
+                      : "Seleccionar PDF"}
+                  </span>
+                </button>
+                {ratePdfError && (
+                  <p className="rate-analyzer-error">{ratePdfError}</p>
+                )}
+                {ratePdfPreview && (
+                  <div className="panel rate-preview">
+                    <div className="panel-heading">
+                      <div className="pdf-ready-icon">
+                        <Check />
+                      </div>
+                      <div>
+                        <h3>
+                          Vista previa ·{" "}
+                          {shortSeasonName(ratePdfPreview.season)}
+                        </h3>
+                        <p>{ratePdfFileName}</p>
+                      </div>
+                    </div>
+                    <div className="pdf-summary-grid">
+                      <div>
+                        <strong>{ratePdfPreview.rows.length}</strong>
+                        <span>Categorías admitidas</span>
+                      </div>
+                      <div>
+                        <strong>{ratePdfPreview.rates.length}</strong>
+                        <span>Tarifas con importe</span>
+                      </div>
+                      <div>
+                        <strong>2 %</strong>
+                        <span>Retención aplicada</span>
+                      </div>
+                    </div>
+                    <div className="rate-exclusions">
+                      <ShieldCheck />
+                      <div>
+                        <strong>Exclusiones automáticas</strong>
+                        <span>
+                          Se ignoran toda la sección FEB, Liga Provincial
+                          Guadalajara y cualquier trofeo.
+                          {ratePdfPreview.excludedCategories.length
+                            ? ` Detectadas en este PDF: ${ratePdfPreview.excludedCategories.join(", ")}.`
+                            : ""}
+                        </span>
+                      </div>
+                    </div>
+                    {(ratePdfPreview.diets.length > 0 ||
+                      ratePdfPreview.mileage.length > 0) && (
+                      <div className="expense-policy-preview">
+                        <div>
+                          <strong>Dietas detectadas</strong>
+                          {ratePdfPreview.diets.map((option) => (
+                            <span key={option.id}>
+                              {option.label}: {money(option.amount)}
+                            </span>
+                          ))}
+                        </div>
+                        <div>
+                          <strong>Kilometraje detectado</strong>
+                          {ratePdfPreview.mileage.map((option) => (
+                            <span key={option.id}>
+                              {option.label}: {money(option.amount)}/km
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <div className="rate-preview-table">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Categoría</th>
+                            <th>Principal</th>
+                            <th>Auxiliar</th>
+                            <th>Anotador</th>
+                            <th>Crono</th>
+                            <th>Oper. RLL</th>
+                            <th>Ayudante</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {ratePdfPreview.rows.map((row) => (
+                            <tr key={row.category}>
+                              <td>
+                                <strong>{row.category}</strong>
+                              </td>
+                              {row.amounts.map((amount, index) => (
+                                <td key={`${row.category}-${index}`}>
+                                  {amount === null ? "—" : money(amount)}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="pdf-actions">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={discardRatePdf}
+                      >
+                        Cancelar
+                      </Button>
+                      <Button
+                        type="button"
+                        className="primary-btn"
+                        onClick={applyRatePdf}
+                      >
+                        <Check /> Actualizar tarifas oficiales
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                <div className="panel season-help">
+                  <ShieldCheck />
+                  <div>
+                    <strong>Las tarifas personalizadas no se borran</strong>
+                    <span>
+                      Al confirmar solo se sustituyen las tarifas oficiales. Si
+                      el formato del PDF cambia y no se puede leer con
+                      seguridad, RefFlow no aplica ningún cambio.
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+            <Dialog open={closeSeasonOpen} onOpenChange={setCloseSeasonOpen}>
+              <DialogContent className="dialog-card season-close-dialog">
+                <DialogHeader>
+                  <DialogTitle>
+                    Cerrar temporada {shortSeasonName(data.settings.season)}
+                  </DialogTitle>
+                  <DialogDescription>
+                    Se archivarán todos sus partidos, ganancias y vídeos.
+                    Después se abrirá la temporada{" "}
+                    {shortSeasonName(nextSeasonName)} sin partidos ni ingresos;
+                    tus tarifas, compañeros y perfil se conservarán.
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => setCloseSeasonOpen(false)}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    className="close-season-confirm"
+                    onClick={closeCurrentSeason}
+                  >
+                    Cerrar y crear {shortSeasonName(nextSeasonName)}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </section>
+        )}
+      </main>
+      <nav className="bottom-nav">
+        {nav
+          .filter(({ id }) =>
+            [
+              "inicio",
+              "calendario",
+              "regionales",
+              "escolares",
+              "ganancias",
+            ].includes(id),
+          )
+          .map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              className={view === id ? "active" : ""}
+              onClick={() => setView(id)}
+            >
+              <Icon />
+              <span>{label}</span>
+            </button>
+          ))}
+      </nav>
+    </div>
+  );
 }
