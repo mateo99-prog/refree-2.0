@@ -226,24 +226,12 @@ const DEFAULT_SHIRT_COLORS: ShirtColors = {
   shirt1: "#f04f98",
   shirt2: "#111827",
 };
-const normalizeFbclmMatchUrl = (value: string) => {
-  const trimmed = value.trim();
-  if (!trimmed) return "";
-  const withProtocol = /^https?:\/\//i.test(trimmed)
-    ? trimmed
-    : `https://${trimmed}`;
+const fbclmMatchIdFromUrl = (value?: string) => {
+  if (!value) return "";
   try {
-    const url = new URL(withProtocol);
-    const id = url.searchParams.get("id");
-    if (
-      !/^(?:www\.)?fbclm\.net$/i.test(url.hostname) ||
-      url.pathname !== "/pagina-de-partido/" ||
-      !/^\d+$/.test(id || "")
-    )
-      return null;
-    return `https://fbclm.net/pagina-de-partido/?id=${id}`;
+    return new URL(value).searchParams.get("id")?.replace(/\D/g, "") || "";
   } catch {
-    return null;
+    return "";
   }
 };
 const resolveFbclmMatch = async (
@@ -1579,7 +1567,7 @@ function EditMatchDialog({
       )?.id ||
       ((item.mileageRate || 0) > 0 ? "custom" : "none"),
     mileageKm: item.mileageKm ? String(item.mileageKm) : "",
-    fbclmUrl: item.fbclmUrl || "",
+    fbclmId: fbclmMatchIdFromUrl(item.fbclmUrl),
     friendly: Boolean(item.friendly),
     partners: item.partners.join(", "),
   });
@@ -1590,7 +1578,7 @@ function EditMatchDialog({
   const set = (key: keyof Omit<typeof form, "friendly">, value: string) => {
     setForm((current) => ({ ...current, [key]: value }));
     if (key === "category" || key === "role") setRateMessage("");
-    if (key === "fbclmUrl") setLinkMessage("");
+    if (key === "fbclmId") setLinkMessage("");
   };
   const setMileageOption = (value: string) =>
     setForm((current) => ({
@@ -1661,11 +1649,14 @@ function EditMatchDialog({
     previewMileage;
   const submit = () => {
     if (!form.home.trim() || !form.away.trim()) return;
-    const fbclmUrl = normalizeFbclmMatchUrl(form.fbclmUrl);
-    if (fbclmUrl === null) {
-      setLinkMessage("Pega un enlace de partido válido de fbclm.net.");
+    const fbclmId = form.fbclmId.trim();
+    if (fbclmId && !/^\d+$/.test(fbclmId)) {
+      setLinkMessage("El ID del partido solo puede contener números.");
       return;
     }
+    const fbclmUrl = fbclmId
+      ? `https://fbclm.net/pagina-de-partido/?id=${fbclmId}`
+      : "";
     const updatedMatch: Match = {
       ...match,
       date: form.date,
@@ -1882,16 +1873,18 @@ function EditMatchDialog({
                   </span>
                 </div>
                 <label className="wide">
-                  Enlace del partido en FBCLM
+                  ID del partido en FBCLM
                   <Input
-                    type="url"
-                    value={form.fbclmUrl}
-                    onChange={(event) => set("fbclmUrl", event.target.value)}
-                    placeholder="https://fbclm.net/pagina-de-partido/?id=…"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={form.fbclmId}
+                    onChange={(event) => set("fbclmId", event.target.value)}
+                    placeholder="Ejemplo: 27158"
                   />
                   <small>
-                    Puedes pegar aquí la ficha directa si no se encontró al
-                    analizar el PDF.
+                    Escribe solo el número que aparece después de «id=» en la
+                    ficha del partido.
                   </small>
                   {linkMessage && (
                     <span className="form-error">{linkMessage}</span>
