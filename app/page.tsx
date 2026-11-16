@@ -226,6 +226,26 @@ const DEFAULT_SHIRT_COLORS: ShirtColors = {
   shirt1: "#f04f98",
   shirt2: "#111827",
 };
+const normalizeFbclmMatchUrl = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  const withProtocol = /^https?:\/\//i.test(trimmed)
+    ? trimmed
+    : `https://${trimmed}`;
+  try {
+    const url = new URL(withProtocol);
+    const id = url.searchParams.get("id");
+    if (
+      !/^(?:www\.)?fbclm\.net$/i.test(url.hostname) ||
+      url.pathname !== "/pagina-de-partido/" ||
+      !/^\d+$/.test(id || "")
+    )
+      return null;
+    return `https://fbclm.net/pagina-de-partido/?id=${id}`;
+  } catch {
+    return null;
+  }
+};
 const resolveFbclmMatch = async (
   match: ParsedDesignationPdf["matches"][number],
 ) => {
@@ -1509,6 +1529,22 @@ function MatchDialog({
                     Neto estimado <strong>{money(previewNet)}</strong>
                   </span>
                 </div>
+                <label className="wide">
+                  Enlace del partido en FBCLM
+                  <Input
+                    type="url"
+                    value={form.fbclmUrl}
+                    onChange={(event) => set("fbclmUrl", event.target.value)}
+                    placeholder="https://fbclm.net/pagina-de-partido/?id=…"
+                  />
+                  <small>
+                    Puedes pegar aquí la ficha directa si no se encontró al
+                    analizar el PDF.
+                  </small>
+                  {linkMessage && (
+                    <span className="form-error">{linkMessage}</span>
+                  )}
+                </label>
               </div>
             </details>
           </div>
@@ -1559,15 +1595,18 @@ function EditMatchDialog({
       )?.id ||
       ((item.mileageRate || 0) > 0 ? "custom" : "none"),
     mileageKm: item.mileageKm ? String(item.mileageKm) : "",
+    fbclmUrl: item.fbclmUrl || "",
     friendly: Boolean(item.friendly),
     partners: item.partners.join(", "),
   });
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(() => formFromMatch(match));
   const [rateMessage, setRateMessage] = useState("");
+  const [linkMessage, setLinkMessage] = useState("");
   const set = (key: keyof Omit<typeof form, "friendly">, value: string) => {
     setForm((current) => ({ ...current, [key]: value }));
     if (key === "category" || key === "role") setRateMessage("");
+    if (key === "fbclmUrl") setLinkMessage("");
   };
   const setMileageOption = (value: string) =>
     setForm((current) => ({
@@ -1604,6 +1643,7 @@ function EditMatchDialog({
   const changeOpen = (nextOpen: boolean) => {
     if (nextOpen) setForm(formFromMatch(match));
     setRateMessage("");
+    setLinkMessage("");
     setOpen(nextOpen);
   };
   const selectedDiet =
@@ -1637,6 +1677,11 @@ function EditMatchDialog({
     previewMileage;
   const submit = () => {
     if (!form.home.trim() || !form.away.trim()) return;
+    const fbclmUrl = normalizeFbclmMatchUrl(form.fbclmUrl);
+    if (fbclmUrl === null) {
+      setLinkMessage("Pega un enlace de partido válido de fbclm.net.");
+      return;
+    }
     const updatedMatch: Match = {
       ...match,
       date: form.date,
@@ -1654,6 +1699,7 @@ function EditMatchDialog({
       mileageRate: selectedMileage?.amount || 0,
       mileageOptionId: selectedMileage?.id,
       mileageLabel: selectedMileage?.label,
+      fbclmUrl: fbclmUrl || undefined,
       friendly: match.competition === "escolar" && form.friendly,
       retention: RETENTION_RATE,
       partners: form.partners
