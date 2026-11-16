@@ -1529,22 +1529,6 @@ function MatchDialog({
                     Neto estimado <strong>{money(previewNet)}</strong>
                   </span>
                 </div>
-                <label className="wide">
-                  Enlace del partido en FBCLM
-                  <Input
-                    type="url"
-                    value={form.fbclmUrl}
-                    onChange={(event) => set("fbclmUrl", event.target.value)}
-                    placeholder="https://fbclm.net/pagina-de-partido/?id=…"
-                  />
-                  <small>
-                    Puedes pegar aquí la ficha directa si no se encontró al
-                    analizar el PDF.
-                  </small>
-                  {linkMessage && (
-                    <span className="form-error">{linkMessage}</span>
-                  )}
-                </label>
               </div>
             </details>
           </div>
@@ -1897,6 +1881,22 @@ function EditMatchDialog({
                     Neto estimado <strong>{money(previewNet)}</strong>
                   </span>
                 </div>
+                <label className="wide">
+                  Enlace del partido en FBCLM
+                  <Input
+                    type="url"
+                    value={form.fbclmUrl}
+                    onChange={(event) => set("fbclmUrl", event.target.value)}
+                    placeholder="https://fbclm.net/pagina-de-partido/?id=…"
+                  />
+                  <small>
+                    Puedes pegar aquí la ficha directa si no se encontró al
+                    analizar el PDF.
+                  </small>
+                  {linkMessage && (
+                    <span className="form-error">{linkMessage}</span>
+                  )}
+                </label>
               </div>
             </details>
             <label className="wide">
