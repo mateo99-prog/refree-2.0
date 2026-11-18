@@ -2485,6 +2485,9 @@ svg {
   fill: #0b5cff;
   rx: 5px;
 }
+.earnings-chart .weekly-bar {
+  opacity: 0.78;
+}
 .earnings-chart .bar-value {
   fill: #23405f;
   font-size: 10px;
@@ -2499,12 +2502,23 @@ svg {
   font-size: 10px;
   font-weight: 800;
 }
+.earnings-chart .week-date-label {
+  fill: #66768b;
+  font-size: 10px;
+  font-weight: 650;
+}
+.earnings-chart .matches-axis-label {
+  fill: #c65d0a;
+  font-size: 11px;
+  font-weight: 800;
+}
 .earnings-chart .matches-line {
   fill: none;
   stroke: #f47b20;
   stroke-width: 3;
   stroke-linecap: round;
   stroke-linejoin: round;
+  filter: drop-shadow(0 1px 1px rgba(255, 255, 255, 0.95));
 }
 .earnings-chart .matches-point {
   fill: #f47b20;

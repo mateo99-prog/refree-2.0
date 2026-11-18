@@ -1062,6 +1062,7 @@ async function assetDataUrl(path: string) {
   });
 }
 type EarningsChartMonth = {
+  key: string;
   label: string;
   shortLabel: string;
   total: number;
@@ -1138,42 +1139,62 @@ const earningsChartImage = (months: EarningsChartMonth[], season: string) => {
   context.textAlign = "left";
   return canvas.toDataURL("image/png");
 };
-function MonthlyEarningsChart({ matches, label }: { matches: Match[]; label: string }) {
-  const orderedMatches = [...matches].sort((first, second) =>
-    `${first.date}${first.time}`.localeCompare(`${second.date}${second.time}`),
-  );
-  if (orderedMatches.length === 0)
-    return <div className="panel earnings-chart-panel"><div className="panel-heading"><div><p>EVOLUCIÓN DEL MES</p><h3>{label}</h3></div></div><div className="finance-empty">No hay partidos para representar este mes.</div></div>;
-  const highestEarning = Math.max(1, ...orderedMatches.map(net));
+function WeeklyEarningsChart({ month }: { month: EarningsChartMonth }) {
+  const [year, monthNumber] = month.key.split("-").map(Number);
+  const lastDay = new Date(year, monthNumber, 0).getDate();
+  const weeks = Array.from({ length: Math.ceil(lastDay / 7) }, (_, index) => {
+    const firstDay = index * 7 + 1;
+    const finalDay = Math.min(firstDay + 6, lastDay);
+    const matches = month.matches.filter((match) => {
+      const day = Number(match.date.slice(8, 10));
+      return day >= firstDay && day <= finalDay;
+    });
+    return {
+      label: `Semana ${index + 1}`,
+      dates: `${firstDay}–${finalDay}`,
+      matches,
+      total: matches.reduce((sum, match) => sum + net(match), 0),
+    };
+  });
+  const highestEarning = Math.max(1, ...weeks.map((week) => week.total));
+  const highestMatches = Math.max(1, ...weeks.map((week) => week.matches.length));
   const rangeStep = highestEarning <= 50 ? 10 : highestEarning <= 100 ? 20 : highestEarning <= 250 ? 50 : 100;
   const maxEarnings = Math.ceil(highestEarning / rangeStep) * rangeStep;
   const left = 58;
+  const right = 55;
   const top = 28;
-  const plotWidth = Math.max(650, orderedMatches.length * 105);
+  const plotWidth = 800;
   const plotHeight = 205;
-  const width = left + plotWidth + 25;
+  const width = left + plotWidth + right;
   const height = 320;
-  const step = plotWidth / orderedMatches.length;
+  const step = plotWidth / weeks.length;
+  const linePoints = weeks.map((week, index) => ({
+    x: left + step * index + step / 2,
+    y: top + plotHeight - (week.matches.length / highestMatches) * plotHeight * .78 - plotHeight * .08,
+  }));
   return (
     <div className="panel earnings-chart-panel">
       <div className="panel-heading">
-        <div><p>EVOLUCIÓN DEL MES</p><h3>Ganancias por partido · {label}</h3></div>
-        <div className="chart-legend"><span className="earnings-key">Ganancia neta</span></div>
+        <div><p>EVOLUCIÓN SEMANAL</p><h3>Ganancias y partidos · {month.label}</h3></div>
+        <div className="chart-legend"><span className="earnings-key">Ganancias netas</span><span className="matches-key">N.º de partidos</span></div>
       </div>
       <div className="earnings-chart-scroll">
-        <svg className="earnings-chart monthly-match-chart" style={{ minWidth: `${Math.max(760, orderedMatches.length * 105)}px` }} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`Ganancias por partido en ${label}`}>
+        <svg className="earnings-chart weekly-earnings-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`Ganancias y número de partidos por semana en ${month.label}`}>
           {[0, 1, 2, 3, 4].map((line) => {
             const y = top + (plotHeight / 4) * line;
             return <g key={line}><line x1={left} y1={y} x2={left + plotWidth} y2={y} /><text x={left - 8} y={y + 4} textAnchor="end">{Math.round(maxEarnings * (1 - line / 4))} €</text></g>;
           })}
-          {orderedMatches.map((match, index) => {
-            const center = left + step * index + step / 2;
-            const earning = net(match);
-            const barHeight = (earning / maxEarnings) * plotHeight;
-            const date = new Date(`${match.date}T${match.time || "12:00"}:00`);
-            const dayLabel = new Intl.DateTimeFormat("es-ES", { day: "2-digit", month: "2-digit" }).format(date);
-            return <g key={match.id}><rect className="earnings-bar" x={center - Math.min(28, step * .3)} y={top + plotHeight - barHeight} width={Math.min(56, step * .6)} height={barHeight}><title>{dayLabel} · {match.time} · Partido {match.matchNumber || "sin número"}: {money(earning)}</title></rect><text className="bar-value" x={center} y={Math.max(top + 12, top + plotHeight - barHeight - 7)} textAnchor="middle">{money(earning)}</text><text className="month-label" x={center} y={top + plotHeight + 25} textAnchor="middle">{dayLabel} · {match.time}</text><text className="match-number-label" x={center} y={top + plotHeight + 43} textAnchor="middle">N.º {match.matchNumber || "—"}</text></g>;
+          {[0, 1, 2, 3, 4].map((line) => {
+            const y = top + (plotHeight / 4) * line;
+            return <text className="matches-axis-label" key={`matches-${line}`} x={left + plotWidth + 9} y={y + 4}>{Math.round(highestMatches * (1 - line / 4))}</text>;
           })}
+          {weeks.map((week, index) => {
+            const center = left + step * index + step / 2;
+            const barHeight = (week.total / maxEarnings) * plotHeight * .88;
+            return <g key={week.label}><rect className="earnings-bar weekly-bar" x={center - Math.min(42, step * .28)} y={top + plotHeight - barHeight} width={Math.min(84, step * .56)} height={barHeight}><title>{week.label} ({week.dates}): {money(week.total)} · {matchCountLabel(week.matches.length)}</title></rect><text className="bar-value" x={center} y={Math.max(top + 14, top + plotHeight - barHeight - 8)} textAnchor="middle">{money(week.total)}</text><text className="month-label" x={center} y={top + plotHeight + 25} textAnchor="middle">{week.label}</text><text className="week-date-label" x={center} y={top + plotHeight + 43} textAnchor="middle">Días {week.dates}</text></g>;
+          })}
+          <polyline className="matches-line" points={linePoints.map((point) => `${point.x},${point.y}`).join(" ")} />
+          {linePoints.map((point, index) => <g key={`point-${weeks[index].label}`}><circle className="matches-point" cx={point.x} cy={point.y} r="6"><title>{weeks[index].label}: {matchCountLabel(weeks[index].matches.length)}</title></circle><text className="match-value" x={point.x} y={Math.max(top + 13, point.y - 12)} textAnchor="middle">{weeks[index].matches.length}</text></g>)}
         </svg>
       </div>
     </div>
@@ -2545,6 +2566,15 @@ export default function RefFlow() {
   const selectedEarningsMonth = earningsMonths.find(
     (month) => month.key === earningsPeriod,
   );
+  const currentEarningsMonth =
+    earningsMonths.find((month) => month.key === monthPrefix) || {
+      key: monthPrefix,
+      label: monthLabel,
+      shortLabel: monthLabel,
+      matches: data.matches.filter((match) => match.date.startsWith(monthPrefix)),
+      gross: 0,
+      total: monthTotal,
+    };
   const selectedMonthMatches = selectedEarningsMonth?.matches || [];
   const selectedMonthRegionalMatches = selectedMonthMatches.filter(
     (match) => match.competition === "regional",
@@ -5010,6 +5040,7 @@ export default function RefFlow() {
                     <Trophy />
                   </article>
                 </div>
+                <WeeklyEarningsChart month={currentEarningsMonth} />
                 <div className="earnings-split">
                   {[
                     {
@@ -5108,10 +5139,7 @@ export default function RefFlow() {
                       <BarChart3 />
                     </article>
                   </div>
-                  <MonthlyEarningsChart
-                    matches={selectedMonthMatches}
-                    label={selectedEarningsMonth.label}
-                  />
+                  <WeeklyEarningsChart month={selectedEarningsMonth} />
                   <div className="panel finance-list">
                     <div className="panel-heading">
                       <div>
