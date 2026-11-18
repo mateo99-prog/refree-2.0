@@ -2494,6 +2494,11 @@ svg {
   font-size: 10px;
   font-weight: 750;
 }
+.earnings-chart .match-number-label {
+  fill: #304761;
+  font-size: 10px;
+  font-weight: 800;
+}
 .earnings-chart .matches-line {
   fill: none;
   stroke: #f47b20;

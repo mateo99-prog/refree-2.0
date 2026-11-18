@@ -1138,39 +1138,42 @@ const earningsChartImage = (months: EarningsChartMonth[], season: string) => {
   context.textAlign = "left";
   return canvas.toDataURL("image/png");
 };
-function SeasonEarningsChart({ months }: { months: EarningsChartMonth[] }) {
-  const maxEarnings = Math.max(1, ...months.map((month) => month.total));
-  const maxMatches = Math.max(1, ...months.map((month) => month.matches.length));
-  const width = 960;
-  const height = 300;
-  const left = 48;
+function MonthlyEarningsChart({ matches, label }: { matches: Match[]; label: string }) {
+  const orderedMatches = [...matches].sort((first, second) =>
+    `${first.date}${first.time}`.localeCompare(`${second.date}${second.time}`),
+  );
+  if (orderedMatches.length === 0)
+    return <div className="panel earnings-chart-panel"><div className="panel-heading"><div><p>EVOLUCIÓN DEL MES</p><h3>{label}</h3></div></div><div className="finance-empty">No hay partidos para representar este mes.</div></div>;
+  const highestEarning = Math.max(1, ...orderedMatches.map(net));
+  const rangeStep = highestEarning <= 50 ? 10 : highestEarning <= 100 ? 20 : highestEarning <= 250 ? 50 : 100;
+  const maxEarnings = Math.ceil(highestEarning / rangeStep) * rangeStep;
+  const left = 58;
   const top = 28;
-  const plotWidth = 880;
+  const plotWidth = Math.max(650, orderedMatches.length * 105);
   const plotHeight = 205;
-  const step = plotWidth / months.length;
-  const points = months.map((month, index) => ({
-    x: left + step * index + step / 2,
-    y: top + plotHeight - (month.matches.length / maxMatches) * plotHeight,
-  }));
+  const width = left + plotWidth + 25;
+  const height = 320;
+  const step = plotWidth / orderedMatches.length;
   return (
     <div className="panel earnings-chart-panel">
       <div className="panel-heading">
-        <div><p>EVOLUCIÓN DE LA TEMPORADA</p><h3>Ganancias y partidos por mes</h3></div>
-        <div className="chart-legend"><span className="earnings-key">Ganancias netas</span><span className="matches-key">N.º de partidos</span></div>
+        <div><p>EVOLUCIÓN DEL MES</p><h3>Ganancias por partido · {label}</h3></div>
+        <div className="chart-legend"><span className="earnings-key">Ganancia neta</span></div>
       </div>
       <div className="earnings-chart-scroll">
-        <svg className="earnings-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Ganancias netas y número de partidos por mes">
+        <svg className="earnings-chart monthly-match-chart" style={{ minWidth: `${Math.max(760, orderedMatches.length * 105)}px` }} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`Ganancias por partido en ${label}`}>
           {[0, 1, 2, 3, 4].map((line) => {
             const y = top + (plotHeight / 4) * line;
             return <g key={line}><line x1={left} y1={y} x2={left + plotWidth} y2={y} /><text x={left - 8} y={y + 4} textAnchor="end">{Math.round(maxEarnings * (1 - line / 4))} €</text></g>;
           })}
-          {months.map((month, index) => {
+          {orderedMatches.map((match, index) => {
             const center = left + step * index + step / 2;
-            const barHeight = (month.total / maxEarnings) * plotHeight;
-            return <g key={month.label}><rect className="earnings-bar" x={center - Math.min(24, step * .3)} y={top + plotHeight - barHeight} width={Math.min(48, step * .6)} height={barHeight}><title>{month.label}: {money(month.total)} · {matchCountLabel(month.matches.length)}</title></rect><text className="bar-value" x={center} y={Math.max(top + 12, top + plotHeight - barHeight - 7)} textAnchor="middle">{Math.round(month.total)} €</text><text className="month-label" x={center} y={top + plotHeight + 27} textAnchor="middle">{month.shortLabel.toUpperCase()}</text></g>;
+            const earning = net(match);
+            const barHeight = (earning / maxEarnings) * plotHeight;
+            const date = new Date(`${match.date}T${match.time || "12:00"}:00`);
+            const dayLabel = new Intl.DateTimeFormat("es-ES", { day: "2-digit", month: "2-digit" }).format(date);
+            return <g key={match.id}><rect className="earnings-bar" x={center - Math.min(28, step * .3)} y={top + plotHeight - barHeight} width={Math.min(56, step * .6)} height={barHeight}><title>{dayLabel} · {match.time} · Partido {match.matchNumber || "sin número"}: {money(earning)}</title></rect><text className="bar-value" x={center} y={Math.max(top + 12, top + plotHeight - barHeight - 7)} textAnchor="middle">{money(earning)}</text><text className="month-label" x={center} y={top + plotHeight + 25} textAnchor="middle">{dayLabel} · {match.time}</text><text className="match-number-label" x={center} y={top + plotHeight + 43} textAnchor="middle">N.º {match.matchNumber || "—"}</text></g>;
           })}
-          <polyline className="matches-line" points={points.map((point) => `${point.x},${point.y}`).join(" ")} />
-          {points.map((point, index) => <g key={months[index].label}><circle className="matches-point" cx={point.x} cy={point.y} r="5"><title>{months[index].label}: {matchCountLabel(months[index].matches.length)}</title></circle><text className="match-value" x={point.x} y={Math.max(top + 12, point.y - 10)} textAnchor="middle">{months[index].matches.length}</text></g>)}
         </svg>
       </div>
     </div>
@@ -5007,7 +5010,6 @@ export default function RefFlow() {
                     <Trophy />
                   </article>
                 </div>
-                <SeasonEarningsChart months={earningsMonths} />
                 <div className="earnings-split">
                   {[
                     {
@@ -5106,6 +5108,10 @@ export default function RefFlow() {
                       <BarChart3 />
                     </article>
                   </div>
+                  <MonthlyEarningsChart
+                    matches={selectedMonthMatches}
+                    label={selectedEarningsMonth.label}
+                  />
                   <div className="panel finance-list">
                     <div className="panel-heading">
                       <div>
