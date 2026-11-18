@@ -1141,17 +1141,26 @@ const earningsChartImage = (months: EarningsChartMonth[], season: string) => {
 };
 function WeeklyEarningsChart({ month }: { month: EarningsChartMonth }) {
   const [year, monthNumber] = month.key.split("-").map(Number);
-  const lastDay = new Date(year, monthNumber, 0).getDate();
-  const weeks = Array.from({ length: Math.ceil(lastDay / 7) }, (_, index) => {
-    const firstDay = index * 7 + 1;
-    const finalDay = Math.min(firstDay + 6, lastDay);
+  const firstDayOfMonth = new Date(year, monthNumber - 1, 1, 12);
+  const lastDayOfMonth = new Date(year, monthNumber, 0, 12);
+  const firstMonday = new Date(firstDayOfMonth);
+  firstMonday.setDate(firstMonday.getDate() - ((firstMonday.getDay() + 6) % 7));
+  const weekStarts: Date[] = [];
+  for (const cursor = new Date(firstMonday); cursor <= lastDayOfMonth; cursor.setDate(cursor.getDate() + 7))
+    weekStarts.push(new Date(cursor));
+  const shortDate = (date: Date) =>
+    new Intl.DateTimeFormat("es-ES", { day: "2-digit", month: "2-digit" }).format(date);
+  const weeks = weekStarts.map((weekStart, index) => {
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 6);
+    const weekStartKey = localIsoDate(weekStart);
+    const weekEndKey = localIsoDate(weekEnd);
     const matches = month.matches.filter((match) => {
-      const day = Number(match.date.slice(8, 10));
-      return day >= firstDay && day <= finalDay;
+      return match.date >= weekStartKey && match.date <= weekEndKey;
     });
     return {
       label: `Semana ${index + 1}`,
-      dates: `${firstDay}–${finalDay}`,
+      dates: `${shortDate(weekStart)}–${shortDate(weekEnd)}`,
       matches,
       total: matches.reduce((sum, match) => sum + net(match), 0),
     };
