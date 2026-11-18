@@ -226,38 +226,16 @@ const DEFAULT_SHIRT_COLORS: ShirtColors = {
   shirt1: "#f04f98",
   shirt2: "#111827",
 };
+const fbclmUrlForMatchNumber = (value?: string) => {
+  const id = (value || "").replace(/\D/g, "");
+  return id ? `https://fbclm.net/pagina-de-partido/?id=${id}` : undefined;
+};
 const fbclmMatchIdFromUrl = (value?: string) => {
   if (!value) return "";
   try {
     return new URL(value).searchParams.get("id")?.replace(/\D/g, "") || "";
   } catch {
     return "";
-  }
-};
-const resolveFbclmMatch = async (
-  match: ParsedDesignationPdf["matches"][number],
-) => {
-  const params = new URLSearchParams({
-    number: match.matchNumber,
-    home: match.home,
-    away: match.away,
-    date: match.date,
-  });
-  try {
-    const response = await fetch(`/api/fbclm-match?${params}`);
-    if (!response.ok) return match;
-    const result = (await response.json()) as {
-      found?: boolean;
-      url?: string;
-      searchUrl?: string;
-    };
-    return {
-      ...match,
-      fbclmUrl: result.found ? result.url : undefined,
-      fbclmSearchUrl: result.searchUrl,
-    };
-  } catch {
-    return match;
   }
 };
 const rateTextKey = (value: string) =>
@@ -431,7 +409,7 @@ const mergeOfficialRates = (rates: Rate[] = []): Rate[] => {
 };
 
 const sampleData: AppData = {
-  dataVersion: 14,
+  dataVersion: 15,
   activeSeasonId: "season-2026-27",
   seasonStatus: "open",
   seasonArchives: [],
@@ -504,7 +482,7 @@ const sampleData: AppData = {
   },
 };
 const emptyData = (name: string): AppData => ({
-  dataVersion: 14,
+  dataVersion: 15,
   privacyNoticeVersion: CURRENT_PRIVACY_NOTICE_VERSION,
   privacyNoticeAcknowledgedAt: null,
   activeSeasonId: "season-2026-27",
@@ -539,7 +517,7 @@ const nav: { id: View; label: string; icon: LucideIcon }[] = [
   { id: "tarifas", label: "Tarifas", icon: CircleEuro },
   { id: "ajustes", label: "Ajustes", icon: Settings },
 ];
-const CURRENT_DATA_VERSION = 14;
+const CURRENT_DATA_VERSION = 15;
 const SAMPLE_CONTACT_IDS = new Set(["a1", "a2"]);
 const seasonStartYearFromName = (value: string) => {
   const raw = value.match(/(\d{2,4})\s*\/\s*(\d{2,4})/);
@@ -562,6 +540,8 @@ const seasonIdFor = (name: string) => {
 };
 const normalizeMatch = (match: Match): Match => ({
   ...match,
+  fbclmUrl: fbclmUrlForMatchNumber(match.matchNumber) || match.fbclmUrl,
+  fbclmSearchUrl: match.matchNumber ? undefined : match.fbclmSearchUrl,
   shirtRecommendation:
     match.shirtRecommendation === "pink"
       ? "shirt1"
@@ -2914,7 +2894,11 @@ export default function RefFlow() {
       const pages = await extractPdfTextPages(file);
       const parsed = parseFbclmDesignationPages(pages);
       if (parsed.matches.length === 0) throw new Error("FORMATO_NO_RECONOCIDO");
-      const matches = await Promise.all(parsed.matches.map(resolveFbclmMatch));
+      const matches = parsed.matches.map((match) => ({
+        ...match,
+        fbclmUrl: fbclmUrlForMatchNumber(match.matchNumber),
+        fbclmSearchUrl: undefined,
+      }));
       setPdfImport({ ...parsed, matches });
       setPdfState("ready");
     } catch (error) {
@@ -2970,8 +2954,10 @@ export default function RefFlow() {
         id: makeId(),
         competition: importedCompetition,
         matchNumber: designation.matchNumber,
-        fbclmUrl: designation.fbclmUrl,
-        fbclmSearchUrl: designation.fbclmSearchUrl,
+        fbclmUrl:
+          fbclmUrlForMatchNumber(designation.matchNumber) ||
+          designation.fbclmUrl,
+        fbclmSearchUrl: undefined,
         date: designation.date,
         time: designation.time,
         home: designation.home,
@@ -4282,8 +4268,8 @@ export default function RefFlow() {
               <div>
                 <strong>Tu PDF permanece en este dispositivo</strong>
                 <span>
-                  El PDF se analiza localmente. Para buscar la ficha oficial
-                  solo se cotejan con FBCLM el número, la fecha y los equipos;
+                  El PDF se analiza localmente. El número de partido se usa
+                  directamente como ID para crear su ficha oficial de FBCLM;
                   únicamente se sincronizan los partidos y contactos que
                   confirmes.
                 </span>
