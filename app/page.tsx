@@ -1061,6 +1061,121 @@ async function assetDataUrl(path: string) {
     reader.readAsDataURL(blob);
   });
 }
+type EarningsChartMonth = {
+  label: string;
+  shortLabel: string;
+  total: number;
+  matches: Match[];
+};
+const earningsChartImage = (months: EarningsChartMonth[], season: string) => {
+  const canvas = document.createElement("canvas");
+  canvas.width = 1400;
+  canvas.height = 560;
+  const context = canvas.getContext("2d");
+  if (!context) return "";
+  const left = 105;
+  const top = 95;
+  const width = 1190;
+  const height = 330;
+  const maxEarnings = Math.max(1, ...months.map((month) => month.total));
+  const maxMatches = Math.max(1, ...months.map((month) => month.matches.length));
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.fillStyle = "#07152d";
+  context.font = "700 30px Arial";
+  context.fillText(`Ganancias por mes · Temporada ${season}`, left, 48);
+  context.font = "18px Arial";
+  context.fillStyle = "#607089";
+  context.fillText("Barras: ganancias netas · Línea: número de partidos", left, 78);
+  context.strokeStyle = "#dce5f0";
+  context.lineWidth = 1;
+  for (let index = 0; index <= 4; index += 1) {
+    const y = top + (height / 4) * index;
+    context.beginPath();
+    context.moveTo(left, y);
+    context.lineTo(left + width, y);
+    context.stroke();
+    context.fillStyle = "#718095";
+    context.font = "14px Arial";
+    context.textAlign = "right";
+    context.fillText(`${Math.round(maxEarnings * (1 - index / 4))} €`, left - 12, y + 5);
+  }
+  const step = width / months.length;
+  const points: Array<[number, number]> = [];
+  months.forEach((month, index) => {
+    const centerX = left + step * index + step / 2;
+    const barHeight = (month.total / maxEarnings) * height;
+    const barWidth = Math.min(52, step * 0.55);
+    context.fillStyle = "#0b5cff";
+    context.fillRect(centerX - barWidth / 2, top + height - barHeight, barWidth, barHeight);
+    context.fillStyle = "#263c5a";
+    context.font = "700 13px Arial";
+    context.textAlign = "center";
+    context.fillText(`${month.total.toFixed(0)} €`, centerX, Math.max(top + 15, top + height - barHeight - 8));
+    context.fillStyle = "#607089";
+    context.font = "14px Arial";
+    context.fillText(month.shortLabel.toUpperCase(), centerX, top + height + 28);
+    points.push([
+      centerX,
+      top + height - (month.matches.length / maxMatches) * height,
+    ]);
+  });
+  context.strokeStyle = "#f47b20";
+  context.lineWidth = 4;
+  context.beginPath();
+  points.forEach(([x, y], index) => index === 0 ? context.moveTo(x, y) : context.lineTo(x, y));
+  context.stroke();
+  points.forEach(([x, y], index) => {
+    context.fillStyle = "#f47b20";
+    context.beginPath();
+    context.arc(x, y, 7, 0, Math.PI * 2);
+    context.fill();
+    context.fillStyle = "#7a3b00";
+    context.font = "700 14px Arial";
+    context.textAlign = "center";
+    context.fillText(String(months[index].matches.length), x, Math.max(top + 15, y - 13));
+  });
+  context.textAlign = "left";
+  return canvas.toDataURL("image/png");
+};
+function SeasonEarningsChart({ months }: { months: EarningsChartMonth[] }) {
+  const maxEarnings = Math.max(1, ...months.map((month) => month.total));
+  const maxMatches = Math.max(1, ...months.map((month) => month.matches.length));
+  const width = 960;
+  const height = 300;
+  const left = 48;
+  const top = 28;
+  const plotWidth = 880;
+  const plotHeight = 205;
+  const step = plotWidth / months.length;
+  const points = months.map((month, index) => ({
+    x: left + step * index + step / 2,
+    y: top + plotHeight - (month.matches.length / maxMatches) * plotHeight,
+  }));
+  return (
+    <div className="panel earnings-chart-panel">
+      <div className="panel-heading">
+        <div><p>EVOLUCIÓN DE LA TEMPORADA</p><h3>Ganancias y partidos por mes</h3></div>
+        <div className="chart-legend"><span className="earnings-key">Ganancias netas</span><span className="matches-key">N.º de partidos</span></div>
+      </div>
+      <div className="earnings-chart-scroll">
+        <svg className="earnings-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Ganancias netas y número de partidos por mes">
+          {[0, 1, 2, 3, 4].map((line) => {
+            const y = top + (plotHeight / 4) * line;
+            return <g key={line}><line x1={left} y1={y} x2={left + plotWidth} y2={y} /><text x={left - 8} y={y + 4} textAnchor="end">{Math.round(maxEarnings * (1 - line / 4))} €</text></g>;
+          })}
+          {months.map((month, index) => {
+            const center = left + step * index + step / 2;
+            const barHeight = (month.total / maxEarnings) * plotHeight;
+            return <g key={month.label}><rect className="earnings-bar" x={center - Math.min(24, step * .3)} y={top + plotHeight - barHeight} width={Math.min(48, step * .6)} height={barHeight}><title>{month.label}: {money(month.total)} · {matchCountLabel(month.matches.length)}</title></rect><text className="bar-value" x={center} y={Math.max(top + 12, top + plotHeight - barHeight - 7)} textAnchor="middle">{Math.round(month.total)} €</text><text className="month-label" x={center} y={top + plotHeight + 27} textAnchor="middle">{month.shortLabel.toUpperCase()}</text></g>;
+          })}
+          <polyline className="matches-line" points={points.map((point) => `${point.x},${point.y}`).join(" ")} />
+          {points.map((point, index) => <g key={months[index].label}><circle className="matches-point" cx={point.x} cy={point.y} r="5"><title>{months[index].label}: {matchCountLabel(months[index].matches.length)}</title></circle><text className="match-value" x={point.x} y={Math.max(top + 12, point.y - 10)} textAnchor="middle">{months[index].matches.length}</text></g>)}
+        </svg>
+      </div>
+    </div>
+  );
+}
 function MatchCalendar({
   matches,
   cursor,
@@ -3320,7 +3435,10 @@ export default function RefFlow() {
       ];
     });
     const summary = wb.addWorksheet("RESUMEN");
-    summary.columns = [{ width: 28 }, { width: 18 }];
+    summary.columns = [
+      { width: 28 }, { width: 18 }, { width: 18 }, { width: 3 },
+      ...Array.from({ length: 18 }, () => ({ width: 10 })),
+    ];
     summary.addRow(["REFFLOW · RESUMEN", `Temporada ${data.settings.season}`]);
     summary.addRow([]);
     summary.addRow(["Esta semana", weekTotal]);
@@ -3340,6 +3458,22 @@ export default function RefFlow() {
     [3, 4, 5].forEach((row) => {
       summary.getCell(row, 2).numFmt = "#,##0.00 [$€-es-ES]";
     });
+    summary.addRow([]);
+    const chartHeader = summary.addRow(["MES", "GANANCIAS NETAS", "N.º DE PARTIDOS"]);
+    chartHeader.font = { bold: true, color: { argb: "FFFFFFFF" } };
+    chartHeader.eachCell((cell) => {
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0B5CFF" } };
+      cell.alignment = { horizontal: "center" };
+    });
+    earningsMonths.forEach((month) => {
+      const row = summary.addRow([month.label, month.total, month.matches.length]);
+      row.getCell(2).numFmt = "#,##0.00 [$€-es-ES]";
+    });
+    const chartDataUrl = earningsChartImage(earningsMonths, data.settings.season);
+    if (chartDataUrl) {
+      const chartImageId = wb.addImage({ base64: chartDataUrl, extension: "png" });
+      summary.addImage(chartImageId, { tl: { col: 4, row: 1 }, ext: { width: 980, height: 392 } });
+    }
     const buffer = await wb.xlsx.writeBuffer();
     saveBlob(
       new Blob([buffer], {
@@ -4873,34 +5007,7 @@ export default function RefFlow() {
                     <Trophy />
                   </article>
                 </div>
-                <div className="panel finance-list">
-                  <div className="panel-heading">
-                    <div>
-                      <p>DESGLOSE GENERAL</p>
-                      <h3>Ingresos por partido</h3>
-                    </div>
-                  </div>
-                  {data.matches.length === 0 ? (
-                    <div className="finance-empty">
-                      Aún no hay ingresos registrados esta temporada.
-                    </div>
-                  ) : (
-                    data.matches.map((m) => (
-                      <div className="finance-row" key={m.id}>
-                        <div>
-                          <strong>
-                            {m.home} – {m.away}
-                          </strong>
-                          <small>
-                            {dateLabel(m.date)} · {m.category}
-                          </small>
-                        </div>
-                        <span>{financialBreakdown(m)}</span>
-                        <strong>{money(net(m))}</strong>
-                      </div>
-                    ))
-                  )}
-                </div>
+                <SeasonEarningsChart months={earningsMonths} />
                 <div className="earnings-split">
                   {[
                     {

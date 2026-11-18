@@ -2435,6 +2435,82 @@ svg {
   gap: 18px;
   margin-top: 18px;
 }
+.earnings-chart-panel {
+  margin-top: 18px;
+  overflow: hidden;
+}
+.chart-legend {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  color: #66768b;
+  font-size: 12px;
+  font-weight: 700;
+}
+.chart-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.chart-legend span::before {
+  content: "";
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+  background: #0b5cff;
+}
+.chart-legend .matches-key::before {
+  border-radius: 50%;
+  background: #f47b20;
+}
+.earnings-chart-scroll {
+  overflow-x: auto;
+  padding: 2px 18px 16px;
+}
+.earnings-chart {
+  display: block;
+  width: 100%;
+  min-width: 760px;
+  height: auto;
+}
+.earnings-chart line {
+  stroke: #dce5f0;
+  stroke-width: 1;
+}
+.earnings-chart text {
+  fill: #718095;
+  font-size: 11px;
+}
+.earnings-chart .earnings-bar {
+  fill: #0b5cff;
+  rx: 5px;
+}
+.earnings-chart .bar-value {
+  fill: #23405f;
+  font-size: 10px;
+  font-weight: 800;
+}
+.earnings-chart .month-label {
+  font-size: 10px;
+  font-weight: 750;
+}
+.earnings-chart .matches-line {
+  fill: none;
+  stroke: #f47b20;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.earnings-chart .matches-point {
+  fill: #f47b20;
+  stroke: #fff;
+  stroke-width: 2;
+}
+.earnings-chart .match-value {
+  fill: #a94f08;
+  font-size: 11px;
+  font-weight: 850;
+}
 .earnings-split .finance-list {
   min-width: 0;
 }
@@ -2492,6 +2568,15 @@ svg {
   }
   .finance-heading-total {
     align-items: flex-start;
+  }
+  .earnings-chart-panel .panel-heading {
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .chart-legend {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
   }
   .earnings-split .panel-heading {
     align-items: flex-start;
