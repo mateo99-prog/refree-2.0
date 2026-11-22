@@ -911,6 +911,7 @@ const annotationGroups = [
       "Avance ilegal",
       "Campo atrás",
       "Doble regate",
+      "Violación en el salto",
     ],
   },
   {
