@@ -688,9 +688,12 @@ const hexToRgb = (hex: string): Rgb => {
 };
 const parsedTeamColors = (value: string): Rgb[] => {
   const normalized = rateTextKey(value);
-  return TEAM_COLOR_RGB.flatMap(([pattern, rgb]) =>
-    pattern.test(normalized) ? [rgb] : [],
+  const hexColors = [...value.matchAll(/#([0-9a-f]{6})\b/gi)].map((match) =>
+    hexToRgb(match[0]),
   );
+  return [...hexColors, ...TEAM_COLOR_RGB.flatMap(([pattern, rgb]) =>
+    pattern.test(normalized) ? [rgb] : [],
+  )];
 };
 const colorDistance = (first: Rgb, second: Rgb) =>
   Math.sqrt(
@@ -818,9 +821,9 @@ const extractPdfTextPages = async (file: File) => {
     .promise;
   const pages: PdfTextItem[][] = [];
   for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
-    const content = await (await pdf.getPage(pageNumber)).getTextContent();
-    pages.push(
-      content.items.flatMap((item) => {
+    const page = await pdf.getPage(pageNumber);
+    const content = await page.getTextContent();
+    const textItems: PdfTextItem[] = content.items.flatMap((item) => {
         if (!("str" in item) || !item.str.trim()) return [];
         return [
           {
@@ -830,8 +833,32 @@ const extractPdfTextPages = async (file: File) => {
             text: item.str,
           },
         ];
-      }),
+      });
+    // FBCLM draws the shirt colours as filled squares, not searchable text.
+    const shirtLabels = textItems.filter((item) =>
+      rateTextKey(item.text).includes("color camiseta"),
     );
+    if (shirtLabels.length >= 2) {
+      const scale = 2;
+      const viewport = page.getViewport({ scale });
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.ceil(viewport.width);
+      canvas.height = Math.ceil(viewport.height);
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      if (context) {
+        await page.render({ canvas, canvasContext: context, viewport }).promise;
+        for (const label of shirtLabels.slice(0, 2)) {
+          const x = Math.round((label.x + 8) * scale);
+          const y = Math.round((page.view[3] - label.y + 7) * scale);
+          if (x < 0 || y < 0 || x >= canvas.width || y >= canvas.height) continue;
+          const pixels = context.getImageData(x, y, 1, 1).data;
+          if (pixels[3] < 200 || pixels.slice(0, 3).every((part) => part > 250)) continue;
+          const color = `#${[...pixels.slice(0, 3)].map((part) => part.toString(16).padStart(2, "0")).join("")}`;
+          textItems.push({ page: pageNumber, x: label.x, y: label.y - 7, text: color });
+        }
+      }
+    }
+    pages.push(textItems);
   }
   return pages;
 };
@@ -875,6 +902,7 @@ const annotationGroups = [
     items: [
       "Ángulo de visión",
       "Distancia a la jugada",
+      "Doble pitada",
       "Posicionamiento",
       "Rotación",
     ],
@@ -920,6 +948,7 @@ const annotationGroups = [
     items: [
       "¿Pie intencionado?",
       "¿Fuera de banda?",
+      "¿Responsabilidad?",
       "¿Interferencia o interposición?",
       "¿Falta en acción de tiro?",
       "¿Falta antideportiva?",
