@@ -79,6 +79,7 @@ type View =
   | "inicio"
   | "importar"
   | "calendario"
+  | "prepartido"
   | "regionales"
   | "escolares"
   | "grabados"
@@ -509,6 +510,7 @@ const nav: { id: View; label: string; icon: LucideIcon }[] = [
   { id: "inicio", label: "Inicio", icon: Home },
   { id: "importar", label: "Importar", icon: FileUp },
   { id: "calendario", label: "Calendario", icon: CalendarDays },
+  { id: "prepartido", label: "Prepartido", icon: ShieldCheck },
   { id: "regionales", label: "Regionales", icon: CalendarDays },
   { id: "escolares", label: "Partidos escolares", icon: Trophy },
   { id: "grabados", label: "Partidos grabados", icon: Video },
@@ -4491,6 +4493,59 @@ export default function RefFlow() {
               cursor={calendarCursor}
               onChange={setCalendarCursor}
             />
+          </section>
+        )}
+
+        {view === "prepartido" && (
+          <section className="content pregame-page">
+            <div className="page-heading">
+              <div>
+                <p>PREPARACIÓN ARBITRAL</p>
+                <h2>Prepartido</h2>
+                <span>Lo esencial de cada designación, también de las ya guardadas.</span>
+              </div>
+            </div>
+            <div className="pregame-list">
+              {[...data.matches]
+                .filter((match) =>
+                  `${match.home} ${match.away} ${match.category} ${match.matchNumber || ""}`
+                    .toLocaleLowerCase("es-ES")
+                    .includes(search.toLocaleLowerCase("es-ES")),
+                )
+                .sort((a, b) => `${b.date} ${b.time}`.localeCompare(`${a.date} ${a.time}`))
+                .map((match) => {
+                  const fbclmLink = fbclmUrlForMatchNumber(match.matchNumber || fbclmMatchIdFromUrl(match.fbclmUrl)) || match.fbclmUrl;
+                  const shirt = normalizedShirtChoice(match.shirtRecommendation);
+                  return (
+                    <article className="panel pregame-card" key={match.id}>
+                      <div className="pregame-title">
+                        <div>
+                          <small>{match.category} · {match.role}</small>
+                          <h3>{match.home} – {match.away}</h3>
+                        </div>
+                        <strong>{dateLabel(match.date)} · {match.time}</strong>
+                      </div>
+                      <div className="pregame-facts">
+                        <div><MapPin /><span>{match.venue || "Pabellón no indicado"}</span></div>
+                        <div><Users /><span>{match.partners?.length ? match.partners.join(", ") : "Compañeros no indicados"}</span></div>
+                        <div><Shirt style={{ color: shirt ? data.settings.shirtColors[shirt] : undefined }} />
+                          <span>{shirt ? `${shirtLabel(shirt)} recomendada` : "Camiseta por decidir"}</span></div>
+                      </div>
+                      <div className="pregame-links">
+                        {fbclmLink ? (
+                          <a href={fbclmLink} target="_blank" rel="noopener noreferrer">
+                            Ver partido y estadísticas en FBCLM <ExternalLink />
+                          </a>
+                        ) : (
+                          <span>Añade el ID del partido para abrir su ficha en FBCLM.</span>
+                        )}
+                        {match.matchNumber && <small>Partido n.º {match.matchNumber}</small>}
+                      </div>
+                    </article>
+                  );
+                })}
+              {data.matches.length === 0 && <div className="panel pregame-empty">Aún no hay partidos. Importa una designación o añade uno para preparar su ficha.</div>}
+            </div>
           </section>
         )}
 

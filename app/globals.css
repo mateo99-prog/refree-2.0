@@ -274,6 +274,24 @@ svg {
 .content.narrow {
   max-width: 950px;
 }
+.pregame-list { display: grid; gap: 16px; margin-top: 24px; }
+.pregame-card { padding: 22px; min-width: 0; }
+.pregame-title { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.pregame-title h3 { margin: 5px 0 0; font-size: 20px; }
+.pregame-title small { color: #63748b; font-size: 14px; }
+.pregame-title > strong { white-space: nowrap; font-size: 15px; }
+.pregame-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin: 20px 0; }
+.pregame-facts > div { display: flex; gap: 9px; align-items: flex-start; min-width: 0; overflow-wrap: anywhere; font-size: 15px; }
+.pregame-facts svg, .pregame-links svg { width: 18px; height: 18px; flex: none; }
+.pregame-links { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding-top: 16px; border-top: 1px solid #e4eaf2; font-size: 14px; }
+.pregame-links a { display: inline-flex; gap: 7px; align-items: center; color: #0b5cff; font-weight: 700; }
+.pregame-links small, .pregame-links > span { color: #63748b; font-size: 14px; }
+.pregame-empty { padding: 24px; }
+@media (max-width: 750px) {
+  .pregame-title { flex-direction: column; }
+  .pregame-title > strong { white-space: normal; }
+  .pregame-facts { grid-template-columns: 1fr; }
+}
 .notice {
   margin: 16px 34px 0;
   background: #e9f3ff;
