@@ -231,10 +231,6 @@ const fbclmUrlForMatchNumber = (value?: string) => {
   const id = (value || "").replace(/\D/g, "");
   return id ? `https://fbclm.net/pagina-de-partido/?id=${id}` : undefined;
 };
-const fbclmTeamSearchUrl = (team: string, category: string) => {
-  const query = `site:fbclm.net/pagina-de-equipo/ "${team.trim()}" ${category.trim()}`;
-  return `https://www.google.com/search?q=${encodeURIComponent(query)}`;
-};
 const fbclmMatchIdFromUrl = (value?: string) => {
   if (!value) return "";
   try {
@@ -4539,6 +4535,7 @@ export default function RefFlow() {
                 )
                 .sort((a, b) => `${b.date} ${b.time}`.localeCompare(`${a.date} ${a.time}`))
                 .map((match) => {
+                  const fbclmLink = fbclmUrlForMatchNumber(match.matchNumber || fbclmMatchIdFromUrl(match.fbclmUrl)) || match.fbclmUrl;
                   const shirt = normalizedShirtChoice(match.shirtRecommendation);
                   return (
                     <article className="panel pregame-card" key={match.id}>
@@ -4556,15 +4553,14 @@ export default function RefFlow() {
                           <span>{shirt ? `${shirtLabel(shirt, data.settings.shirtColors)} recomendada` : "Camiseta por decidir"}</span></div>
                       </div>
                       <div className="pregame-links">
-                        <a href={fbclmTeamSearchUrl(match.home, match.category)} target="_blank" rel="noopener noreferrer"
-                          aria-label={`Buscar estadísticas de ${match.home} en ${match.category} en FBCLM`}>
-                          Buscar equipo local en FBCLM <ExternalLink />
-                        </a>
-                        <a href={fbclmTeamSearchUrl(match.away, match.category)} target="_blank" rel="noopener noreferrer"
-                          aria-label={`Buscar estadísticas de ${match.away} en ${match.category} en FBCLM`}>
-                          Buscar equipo visitante en FBCLM <ExternalLink />
-                        </a>
-                        <small>Comprueba la categoría y temporada en la ficha del equipo.</small>
+                        {fbclmLink ? (
+                          <a href={fbclmLink} target="_blank" rel="noopener noreferrer">
+                            Ver equipos y estadísticas en FBCLM <ExternalLink />
+                          </a>
+                        ) : (
+                          <span>Añade el ID del partido para abrir su ficha en FBCLM.</span>
+                        )}
+                        {match.matchNumber && <small>Partido n.º {match.matchNumber}</small>}
                       </div>
                     </article>
                   );
