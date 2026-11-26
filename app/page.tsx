@@ -723,8 +723,29 @@ const shirtRecommendation = (
     ? "shirt1"
     : "shirt2";
 };
-const shirtLabel = (shirt: ShirtChoice) =>
-  shirt === "shirt1" ? "Camiseta 1" : "Camiseta 2";
+const shirtColorName = (hex: string) => {
+  const [red, green, blue] = hexToRgb(hex).map((channel) => channel / 255);
+  const high = Math.max(red, green, blue);
+  const low = Math.min(red, green, blue);
+  const range = high - low;
+  if (high < 0.25) return "negra";
+  if (range < 0.12) return high > 0.85 ? "blanca" : "gris";
+  let hue = 0;
+  if (high === red) hue = ((green - blue) / range) % 6;
+  else if (high === green) hue = (blue - red) / range + 2;
+  else hue = (red - green) / range + 4;
+  hue = (hue * 60 + 360) % 360;
+  if (hue < 15 || hue >= 345) return "roja";
+  if (hue < 45) return "naranja";
+  if (hue < 70) return "amarilla";
+  if (hue < 165) return "verde";
+  if (hue < 200) return "turquesa";
+  if (hue < 255) return "azul";
+  if (hue < 295) return "morada";
+  return "rosa";
+};
+const shirtLabel = (shirt: ShirtChoice, colors: ShirtColors) =>
+  `Camiseta ${shirtColorName(colors[shirt])}`;
 const normalizedShirtChoice = (
   shirt?: Match["shirtRecommendation"],
 ): ShirtChoice | undefined =>
@@ -4408,7 +4429,7 @@ export default function RefFlow() {
                                 <>
                                   Recomendación:{" "}
                                   <strong>
-                                    {shirtLabel(recommendedShirt)}
+                                    {shirtLabel(recommendedShirt, data.settings.shirtColors)}
                                   </strong>
                                 </>
                               ) : (
@@ -4502,7 +4523,7 @@ export default function RefFlow() {
               <div>
                 <p>PREPARACIÓN ARBITRAL</p>
                 <h2>Prepartido</h2>
-                <span>Lo esencial de cada designación, también de las ya guardadas.</span>
+                <span>Datos esenciales para preparar tu arbitraje.</span>
               </div>
             </div>
             <div className="pregame-list">
@@ -4529,12 +4550,12 @@ export default function RefFlow() {
                         <div><MapPin /><span>{match.venue || "Pabellón no indicado"}</span></div>
                         <div><Users /><span>{match.partners?.length ? match.partners.join(", ") : "Compañeros no indicados"}</span></div>
                         <div><Shirt style={{ color: shirt ? data.settings.shirtColors[shirt] : undefined }} />
-                          <span>{shirt ? `${shirtLabel(shirt)} recomendada` : "Camiseta por decidir"}</span></div>
+                          <span>{shirt ? `${shirtLabel(shirt, data.settings.shirtColors)} recomendada` : "Camiseta por decidir"}</span></div>
                       </div>
                       <div className="pregame-links">
                         {fbclmLink ? (
                           <a href={fbclmLink} target="_blank" rel="noopener noreferrer">
-                            Ver partido y estadísticas en FBCLM <ExternalLink />
+                            Ver equipos y estadísticas en FBCLM <ExternalLink />
                           </a>
                         ) : (
                           <span>Añade el ID del partido para abrir su ficha en FBCLM.</span>
@@ -4677,13 +4698,13 @@ export default function RefFlow() {
                                   }
                                   aria-label={
                                     selectedShirt
-                                      ? `${shirtLabel(selectedShirt)} seleccionada. Pulsar para cambiar.`
+                                      ? `${shirtLabel(selectedShirt, data.settings.shirtColors)} seleccionada. Pulsar para cambiar.`
                                       : "Seleccionar camiseta para el partido"
                                   }
                                   title={
                                     selectedShirt
-                                      ? `${shirtLabel(selectedShirt)} · pulsar para cambiar`
-                                      : "Sin camiseta asignada · pulsar para elegir Camiseta 1"
+                                      ? `${shirtLabel(selectedShirt, data.settings.shirtColors)} · pulsar para cambiar`
+                                      : "Sin camiseta asignada · pulsar para elegir"
                                   }
                                 >
                                   <Shirt
@@ -5868,7 +5889,7 @@ export default function RefFlow() {
                         aria-label="Color de la camiseta 1"
                       />
                       <span>
-                        <strong>Camiseta 1</strong>
+                        <strong>{shirtLabel("shirt1", data.settings.shirtColors)}</strong>
                         <small>
                           {data.settings.shirtColors.shirt1.toUpperCase()}
                         </small>
@@ -5893,7 +5914,7 @@ export default function RefFlow() {
                         aria-label="Color de la camiseta 2"
                       />
                       <span>
-                        <strong>Camiseta 2</strong>
+                        <strong>{shirtLabel("shirt2", data.settings.shirtColors)}</strong>
                         <small>
                           {data.settings.shirtColors.shirt2.toUpperCase()}
                         </small>
